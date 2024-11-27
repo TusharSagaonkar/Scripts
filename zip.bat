@@ -1,7 +1,7 @@
 @echo off
 
-:: Define the source folder to zip
-set "source_folder=myfolder"
+:: Get the current directory
+set "source_folder=%cd%"
 
 :: Define the output ZIP file name
 set "zip_file=archive.zip"
