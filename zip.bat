@@ -1,7 +1,13 @@
 @echo off
-for /d %%F in (*) do (
-    echo Creating zip for folder: %%F
-    zip -r "%%F.zip" "%%F"
-)
-echo All folders have been zipped, including the folder structure.
+
+:: Define the source folder to zip
+set "source_folder=myfolder"
+
+:: Define the output ZIP file name
+set "zip_file=archive.zip"
+
+:: Use forfiles command to recursively zip the folder
+forfiles /S /M * /C "cmd /c compress /F %zip_file% @file" "%source_folder%\*"
+
+echo Zipping complete!
 pause
