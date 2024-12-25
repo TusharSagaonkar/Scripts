@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Excel-Like Advanced Filterable Table</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        th {
+            position: sticky;
+            top: 0;
+            background-color: #f2f2f2;
+        }
+        input, select {
+            width: 90%;
+            padding: 5px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Excel-Like Advanced Filterable Table</h2>
+    <table id="excelTable">
+        <thead>
+            <tr>
+                <th>
+                    Column 1<br>
+                    <select class="filter-type">
+                        <option value="contains">Contains</option>
+                        <option value="startsWith">Starts With</option>
+                        <option value="endsWith">Ends With</option>
+                        <option value="equals">Equals</option>
+                        <option value="notEquals">Does Not Equal</option>
+                        <option value="greaterThan">Greater Than</option>
+                        <option value="lessThan">Less Than</option>
+                    </select>
+                    <input type="text" class="filter-input" placeholder="Search Column 1">
+                </th>
+                <th>
+                    Column 2<br>
+                    <select class="filter-type">
+                        <option value="contains">Contains</option>
+                        <option value="startsWith">Starts With</option>
+                        <option value="endsWith">Ends With</option>
+                        <option value="equals">Equals</option>
+                        <option value="notEquals">Does Not Equal</option>
+                        <option value="greaterThan">Greater Than</option>
+                        <option value="lessThan">Less Than</option>
+                    </select>
+                    <input type="text" class="filter-input" placeholder="Search Column 2">
+                </th>
+                <th>
+                    Column 3<br>
+                    <select class="filter-type">
+                        <option value="contains">Contains</option>
+                        <option value="startsWith">Starts With</option>
+                        <option value="endsWith">Ends With</option>
+                        <option value="equals">Equals</option>
+                        <option value="notEquals">Does Not Equal</option>
+                        <option value="greaterThan">Greater Than</option>
+                        <option value="lessThan">Less Than</option>
+                    </select>
+                    <input type="text" class="filter-input" placeholder="Search Column 3">
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>10</td>
+                <td>20</td>
+                <td>30</td>
+            </tr>
+            <tr>
+                <td>15</td>
+                <td>25</td>
+                <td>35</td>
+            </tr>
+            <tr>
+                <td>20</td>
+                <td>30</td>
+                <td>40</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script>
+        const table = document.getElementById('excelTable');
+        const inputs = table.querySelectorAll('.filter-input');
+        const selects = table.querySelectorAll('.filter-type');
+
+        // Attach event listeners to all inputs and selects
+        inputs.forEach((input, index) => {
+            input.addEventListener('keyup', () => applyFilters());
+            selects[index].addEventListener('change', () => applyFilters());
+        });
+
+        function applyFilters() {
+            const rows = table.querySelectorAll('tbody tr');
+
+            rows.forEach(row => {
+                let isVisible = true; // Assume row is visible
+
+                // Check all filters
+                inputs.forEach((input, colIndex) => {
+                    const filterValue = input.value.toLowerCase();
+                    const filterType = selects[colIndex].value;
+                    const cell = row.cells[colIndex];
+                    const cellText = cell ? (cell.textContent || cell.innerText).toLowerCase() : '';
+
+                    if (filterValue) {
+                        const cellValue = isNaN(cellText) ? cellText : parseFloat(cellText);
+                        const inputValue = isNaN(filterValue) ? filterValue : parseFloat(filterValue);
+
+                        if (filterType === 'contains' && !cellText.includes(filterValue)) {
+                            isVisible = false;
+                        } else if (filterType === 'startsWith' && !cellText.startsWith(filterValue)) {
+                            isVisible = false;
+                        } else if (filterType === 'endsWith' && !cellText.endsWith(filterValue)) {
+                            isVisible = false;
+                        } else if (filterType === 'equals' && cellValue != inputValue) {
+                            isVisible = false;
+                        } else if (filterType === 'notEquals' && cellValue == inputValue) {
+                            isVisible = false;
+                        } else if (filterType === 'greaterThan' && cellValue <= inputValue) {
+                            isVisible = false;
+                        } else if (filterType === 'lessThan' && cellValue >= inputValue) {
+                            isVisible = false;
+                        }
+                    }
+                });
+
+                // Set row visibility
+                row.style.display = isVisible ? '' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>
