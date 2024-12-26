@@ -1,68 +1,60 @@
-DECLARE
-    v_html_output VARCHAR2(4000); -- To hold the generated HTML output
-    v_data_output VARCHAR2(4000); -- To hold the table data
-    v_column_names VARCHAR2(4000); -- To hold the column names
+CREATE OR REPLACE PROCEDURE generate_html_table(p_sql_query IN VARCHAR2) 
+IS
+    -- Declare variables for handling dynamic SQL and result set
+    l_cursor    SYS_REFCURSOR;
+    l_column_count  NUMBER;
+    l_column_name  VARCHAR2(255);
+    l_html_output VARCHAR2(32767) := '<!DOCTYPE html><html><head><title>Excel-Like Table</title><style>';
+    l_row_data   VARCHAR2(4000);
+    l_column_data VARCHAR2(4000);
 BEGIN
-    -- Initialize the HTML output with the form opening tag
-    v_html_output := '<form action="your_action_url" method="POST">'; -- Change "your_action_url" as needed
+    -- Add CSS to the output
+    l_html_output := l_html_output || '
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        th { position: sticky; top: 0; background-color: #f2f2f2; }
+        input, select { width: 90%; padding: 5px; margin-bottom: 10px; }
+    </style></head><body><h2>Excel-Like Advanced Filterable Table</h2><table>';
 
-    -- Step 1: Loop through the columns of the table and generate the HTML inputs
-    FOR rec IN (
-        SELECT COLUMN_NAME
-        FROM USER_TAB_COLUMNS
-        WHERE TABLE_NAME = 'MY_TABLE' -- Replace with your table name (uppercase)
-        ORDER BY COLUMN_ID
-    ) LOOP
-        -- Concatenate HTML for each column with label and input element
-        v_html_output := v_html_output || 
-                         '<label for="' || rec.COLUMN_NAME || '">' || rec.COLUMN_NAME || ':</label>' ||
-                         '<input type="text" id="' || rec.COLUMN_NAME || '" name="' || rec.COLUMN_NAME || '" placeholder="' || rec.COLUMN_NAME || '" /><br>';
+    -- Open the cursor for the dynamic SQL query
+    OPEN l_cursor FOR p_sql_query;
+
+    -- Get the number of columns in the result set
+    FOR i IN 1..10 LOOP
+        BEGIN
+            -- Try to get the column name
+            EXECUTE IMMEDIATE 'SELECT column_name FROM all_tab_columns WHERE table_name = (SELECT table_name FROM user_tables) AND ROWNUM = ' || i INTO l_column_name;
+            EXIT;  -- Exit the loop if successful
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                EXIT; -- Exit if no more columns
+        END;
     END LOOP;
 
-    -- Step 2: Add a submit button and close the form
-    v_html_output := v_html_output || 
-                     '<input type="submit" value="Submit" />' || 
-                     '</form>';
+    -- Loop through the result set and generate HTML rows
+    LOOP
+        FETCH l_cursor INTO l_row_data;
+        EXIT WHEN l_cursor%NOTFOUND;
 
-    -- Step 3: Fetch the table data and generate a table below the form
-    v_data_output := '<h3>Table Data:</h3><table border="1"><tr>';
-    
-    -- Step 3a: Generate column headers for the table
-    FOR rec IN (
-        SELECT COLUMN_NAME
-        FROM USER_TAB_COLUMNS
-        WHERE TABLE_NAME = 'MY_TABLE' -- Replace with your table name (uppercase)
-        ORDER BY COLUMN_ID
-    ) LOOP
-        v_data_output := v_data_output || 
-                         '<th>' || rec.COLUMN_NAME || '</th>';
-    END LOOP;
+        -- Process each row data here
+        l_html_output := l_html_output || '<tr>';
 
-    v_data_output := v_data_output || '</tr>';
-
-    -- Step 3b: Fetch and display the table data
-    FOR rec IN (
-        SELECT * FROM MY_TABLE -- Replace with your table name (uppercase)
-    ) LOOP
-        v_data_output := v_data_output || '<tr>';
-        
-        FOR col IN 1..(SELECT COUNT(*) FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'MY_TABLE') LOOP
-            v_data_output := v_data_output || 
-                             '<td>' || 
-                             (CASE
-                                WHEN col = 1 THEN rec.COLUMN1 -- Adjust column names as needed
-                                WHEN col = 2 THEN rec.COLUMN2 -- Adjust column names as needed
-                                ELSE ''
-                             END) ||
-                             '</td>';
+        -- Fetch column names dynamically for the headers
+        FOR col IN 1..l_column_count LOOP
+            -- Construct dynamic column data for each row
+            l_column_data := l_row_data(col);
+            l_html_output := l_html_output || '<td>' || l_column_data || '</td>';
         END LOOP;
-        
-        v_data_output := v_data_output || '</tr>';
+        l_html_output := l_html_output || '</tr>';
     END LOOP;
 
-    v_data_output := v_data_output || '</table>';
+    -- Close the cursor
+    CLOSE l_cursor;
 
-    -- Step 4: Output the generated HTML (form + table data)
-    DBMS_OUTPUT.PUT_LINE(v_html_output);
-    DBMS_OUTPUT.PUT_LINE(v_data_output);
+    -- Close the HTML table structure
+    l_html_output := l_html_output || '</table></body></html>';
+
+    -- Print the HTML output (you can send this as a response in a web-based application)
+    DBMS_OUTPUT.PUT_LINE(l_html_output);
 END;
+/
