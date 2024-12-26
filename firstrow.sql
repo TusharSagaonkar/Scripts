@@ -1,14 +1,16 @@
-CREATE OR REPLACE PROCEDURE generate_html_table(p_sql_query IN VARCHAR2) 
+CREATE OR REPLACE PROCEDURE generate_html_with_filtering(
+    p_sql_query IN VARCHAR2, 
+    p_html OUT VARCHAR2
+) 
 IS
-    -- Declare variables for handling dynamic SQL and result set
-    l_cursor    SYS_REFCURSOR;
-    l_column_count  NUMBER;
-    l_column_name  VARCHAR2(255);
-    l_html_output VARCHAR2(32767) := '<!DOCTYPE html><html><head><title>Excel-Like Table</title><style>';
-    l_row_data   VARCHAR2(4000);
-    l_column_data VARCHAR2(4000);
+    l_cursor SYS_REFCURSOR;
+    l_column_names VARCHAR2(4000);
+    l_html_output VARCHAR2(32767) := '<!DOCTYPE html><html><head><title>Excel-Like Filterable Table</title><style>';
+    l_column_count NUMBER;
+    l_column_value VARCHAR2(4000);
+    l_row_data SYS.DBMS_SQL.VARCHAR2_TABLE;
 BEGIN
-    -- Add CSS to the output
+    -- Add CSS and basic HTML structure
     l_html_output := l_html_output || '
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #ddd; padding: 8px; }
@@ -16,45 +18,111 @@ BEGIN
         input, select { width: 90%; padding: 5px; margin-bottom: 10px; }
     </style></head><body><h2>Excel-Like Advanced Filterable Table</h2><table>';
 
-    -- Open the cursor for the dynamic SQL query
+    -- Open cursor for dynamic SQL query
     OPEN l_cursor FOR p_sql_query;
 
-    -- Get the number of columns in the result set
-    FOR i IN 1..10 LOOP
+    -- Fetch column names for the table header dynamically
+    FOR col IN 1..100 LOOP
         BEGIN
-            -- Try to get the column name
-            EXECUTE IMMEDIATE 'SELECT column_name FROM all_tab_columns WHERE table_name = (SELECT table_name FROM user_tables) AND ROWNUM = ' || i INTO l_column_name;
-            EXIT;  -- Exit the loop if successful
+            -- Get column name dynamically using DBMS_SQL
+            EXECUTE IMMEDIATE 'SELECT column_name FROM all_tab_columns WHERE table_name = ''&table_name'' AND column_id = ' || col INTO l_column_names;
+            l_column_count := col;
+
+            -- Add each column header and filter input
+            l_html_output := l_html_output || '<th>' || l_column_names || '<br>
+                <select class="filter-type">
+                    <option value="contains">Contains</option>
+                    <option value="startsWith">Starts With</option>
+                    <option value="endsWith">Ends With</option>
+                    <option value="equals">Equals</option>
+                    <option value="notEquals">Does Not Equal</option>
+                    <option value="greaterThan">Greater Than</option>
+                    <option value="lessThan">Less Than</option>
+                </select>
+                <input type="text" class="filter-input" placeholder="Search ' || l_column_names || '"></th>';
         EXCEPTION
             WHEN NO_DATA_FOUND THEN
-                EXIT; -- Exit if no more columns
+                EXIT;
         END;
     END LOOP;
 
-    -- Loop through the result set and generate HTML rows
+    -- Add the table body (rows) dynamically
     LOOP
         FETCH l_cursor INTO l_row_data;
         EXIT WHEN l_cursor%NOTFOUND;
-
-        -- Process each row data here
+        
         l_html_output := l_html_output || '<tr>';
-
-        -- Fetch column names dynamically for the headers
-        FOR col IN 1..l_column_count LOOP
-            -- Construct dynamic column data for each row
-            l_column_data := l_row_data(col);
-            l_html_output := l_html_output || '<td>' || l_column_data || '</td>';
+        
+        -- Process each column and generate HTML for rows
+        FOR col_idx IN 1..l_column_count LOOP
+            l_column_value := l_row_data(col_idx);
+            
+            l_html_output := l_html_output || '<td>' || l_column_value || '</td>';
         END LOOP;
+        
         l_html_output := l_html_output || '</tr>';
     END LOOP;
 
     -- Close the cursor
     CLOSE l_cursor;
 
-    -- Close the HTML table structure
-    l_html_output := l_html_output || '</table></body></html>';
+    -- Close the HTML table and body
+    l_html_output := l_html_output || '</tbody></table>';
 
-    -- Print the HTML output (you can send this as a response in a web-based application)
-    DBMS_OUTPUT.PUT_LINE(l_html_output);
-END;
-/
+    -- Add JavaScript for filtering logic
+    l_html_output := l_html_output || '
+    <script>
+        const table = document.getElementById("excelTable");
+        const inputs = table.querySelectorAll(".filter-input");
+        const selects = table.querySelectorAll(".filter-type");
+
+        // Attach event listeners to all inputs and selects
+        inputs.forEach((input, index) => {
+            input.addEventListener("keyup", () => applyFilters());
+            selects[index].addEventListener("change", () => applyFilters());
+        });
+
+        function applyFilters() {
+            const rows = table.querySelectorAll("tbody tr");
+
+            rows.forEach(row => {
+                let isVisible = true;
+
+                // Check all filters
+                inputs.forEach((input, colIndex) => {
+                    const filterValue = input.value.toLowerCase();
+                    const filterType = selects[colIndex].value;
+                    const cell = row.cells[colIndex];
+                    const cellText = cell ? (cell.textContent || cell.innerText).toLowerCase() : "";
+
+                    if (filterValue) {
+                        const cellValue = isNaN(cellText) ? cellText : parseFloat(cellText);
+                        const inputValue = isNaN(filterValue) ? filterValue : parseFloat(filterValue);
+
+                        if (filterType === "contains" && !cellText.includes(filterValue)) {
+                            isVisible = false;
+                        } else if (filterType === "startsWith" && !cellText.startsWith(filterValue)) {
+                            isVisible = false;
+                        } else if (filterType === "endsWith" && !cellText.endsWith(filterValue)) {
+                            isVisible = false;
+                        } else if (filterType === "equals" && cellValue != inputValue) {
+                            isVisible = false;
+                        } else if (filterType === "notEquals" && cellValue == inputValue) {
+                            isVisible = false;
+                        } else if (filterType === "greaterThan" && cellValue <= inputValue) {
+                            isVisible = false;
+                        } else if (filterType === "lessThan" && cellValue >= inputValue) {
+                            isVisible = false;
+                        }
+                    }
+                });
+
+                // Set row visibility
+                row.style.display = isVisible ? "" : "none";
+            });
+        }
+    </script>';
+
+    -- Return the generated HTML as output
+    p_html := l_html_output;
+END generate_html_with_filtering;
