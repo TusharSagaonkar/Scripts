@@ -8,9 +8,10 @@ IS
     l_html_output VARCHAR2(32767) := '<!DOCTYPE html><html><head><title>Excel-Like Filterable Table</title><style>';
     l_column_count NUMBER;
     l_column_value VARCHAR2(4000);
-    l_row_data SYS.DBMS_SQL.VARCHAR2_TABLE;
+    l_row_data VARCHAR2(4000);
     l_view_name VARCHAR2(30);
     l_temp_sql VARCHAR2(4000);
+    l_first_row BOOLEAN := TRUE;
 BEGIN
     -- Generate a unique temporary view name (e.g., TEMP_VIEW_<timestamp>)
     l_view_name := 'TEMP_VIEW_' || TO_CHAR(SYSDATE, 'YYYYMMDDHH24MISS');
@@ -60,13 +61,19 @@ BEGIN
         FETCH l_cursor INTO l_row_data;
         EXIT WHEN l_cursor%NOTFOUND;
         
+        IF l_first_row THEN
+            l_html_output := l_html_output || '<tbody>';
+            l_first_row := FALSE;
+        END IF;
+        
         l_html_output := l_html_output || '<tr>';
         
         -- Process each column and generate HTML for rows
         FOR col_idx IN 1..l_column_count LOOP
-            l_column_value := l_row_data(col_idx);
+            -- Fetch the value dynamically for each column
+            EXECUTE IMMEDIATE 'SELECT ' || l_column_names || ' FROM ' || l_view_name INTO l_column_value;
             
-            l_html_output := l_html_output || '<td>' || l_column_value || '</td>';
+            l_html_output := l_html_output || '<td>' || NVL(l_column_value, 'NULL') || '</td>';
         END LOOP;
         
         l_html_output := l_html_output || '</tr>';
