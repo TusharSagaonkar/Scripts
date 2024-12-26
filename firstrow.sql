@@ -9,23 +9,32 @@ IS
     l_column_count NUMBER;
     l_column_value VARCHAR2(4000);
     l_row_data SYS.DBMS_SQL.VARCHAR2_TABLE;
+    l_view_name VARCHAR2(30);
+    l_temp_sql VARCHAR2(4000);
 BEGIN
-    -- Add CSS and basic HTML structure
+    -- Generate a unique temporary view name (e.g., TEMP_VIEW_<timestamp>)
+    l_view_name := 'TEMP_VIEW_' || TO_CHAR(SYSDATE, 'YYYYMMDDHH24MISS');
+
+    -- Create the temporary view based on the provided SQL query
+    l_temp_sql := 'CREATE GLOBAL TEMPORARY VIEW ' || l_view_name || ' AS ' || p_sql_query;
+    EXECUTE IMMEDIATE l_temp_sql;
+
+    -- Add CSS and basic HTML structure for the table
     l_html_output := l_html_output || '
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #ddd; padding: 8px; }
         th { position: sticky; top: 0; background-color: #f2f2f2; }
         input, select { width: 90%; padding: 5px; margin-bottom: 10px; }
-    </style></head><body><h2>Excel-Like Advanced Filterable Table</h2><table>';
+    </style></head><body><h2>Excel-Like Advanced Filterable Table</h2><table id="excelTable">';
 
-    -- Open cursor for dynamic SQL query
-    OPEN l_cursor FOR p_sql_query;
+    -- Open cursor for dynamic SQL query on the temporary view
+    OPEN l_cursor FOR 'SELECT * FROM ' || l_view_name;
 
     -- Fetch column names for the table header dynamically
     FOR col IN 1..100 LOOP
         BEGIN
             -- Get column name dynamically using DBMS_SQL
-            EXECUTE IMMEDIATE 'SELECT column_name FROM all_tab_columns WHERE table_name = ''&table_name'' AND column_id = ' || col INTO l_column_names;
+            EXECUTE IMMEDIATE 'SELECT column_name FROM all_tab_columns WHERE table_name = ''' || UPPER(l_view_name) || ''' AND column_id = ' || col INTO l_column_names;
             l_column_count := col;
 
             -- Add each column header and filter input
@@ -125,4 +134,13 @@ BEGIN
 
     -- Return the generated HTML as output
     p_html := l_html_output;
+
+    -- Drop the temporary view after successful HTML generation
+    EXECUTE IMMEDIATE 'DROP VIEW ' || l_view_name;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        -- In case of any error, make sure the temporary view is dropped
+        EXECUTE IMMEDIATE 'DROP VIEW ' || l_view_name;
+        RAISE;
 END generate_html_with_filtering;
