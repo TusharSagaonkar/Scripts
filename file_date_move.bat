@@ -1,38 +1,49 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: Enable debugging for troubleshooting
-echo Starting organization by month...
-pause
+:: Check if path is provided
+if "%~1"=="" (
+    echo Usage: %0 [source_path]
+    exit /b 1
+)
 
-:: Loop through all files in the current folder
-for %%f in (*.*) do (
-    :: Extract the year and month (YYYYMM) from the filename
-    for /f "tokens=1 delims=-" %%a in ("%%~nf") do (
-        set "month_folder=%%a"
-        set "month_folder=!month_folder:~0,6!"
+set "sourcePath=%~1"
+
+:: Validate source path exists
+if not exist "%sourcePath%" (
+    echo Error: Source path does not exist.
+    exit /b 1
+)
+
+:: Logging
+set "logFile=%sourcePath%\file_move_log.txt"
+echo Batch File Processing Started: %date% %time% > "%logFile%"
+
+:: Process files
+for /r "%sourcePath%" %%F in (*) do (
+    set "filename=%%~nxF"
+    set "filepath=%%F"
+    set "processedDate="
+
+    :: Multiple date pattern matching
+    for /f "tokens=*" %%a in ('powershell -Command "$filename='!filename!'; if ($filename -match '(\d{4})[-_./]?(\d{2})[-_./]?(\d{2})') { Write-Output '$1$2$3' }"') do (
+        set "processedDate=%%a"
     )
-    
-    :: Check if the extracted folder name (month_folder) is valid
-    if "!month_folder!" NEQ "" (
-        echo Processing file: %%f
-        echo Extracted folder name: !month_folder!
-        if "!month_folder:~0,6!"=="!month_folder!" (
-            :: Create folder if it doesn’t exist
-            if not exist "!month_folder!" (
-                mkdir "!month_folder!"
-                echo Created folder: !month_folder!
-            )
-            :: Move the file to the folder
-            move "%%f" "!month_folder!\"
-            echo Moved file %%f to folder !month_folder!
-        ) else (
-            echo Skipping file %%f (invalid date format)
-        )
-    ) else (
-        echo Skipping file %%f (no date found)
+
+    if defined processedDate (
+        set "destFolder=%sourcePath%\!processedDate!"
+        
+        :: Create destination folder if not exists
+        if not exist "!destFolder!" mkdir "!destFolder!"
+
+        :: Move file
+        move "!filepath!" "!destFolder!\%%~nxF"
+
+        :: Log movement
+        echo Moved: %%~nxF to !destFolder! >> "%logFile%"
     )
 )
 
-echo Organization completed!
-pause
+:: Final logging
+echo Batch File Processing Completed: %date% %time% >> "%logFile%"
+echo File organization complete.
