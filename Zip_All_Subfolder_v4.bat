@@ -1,12 +1,15 @@
 @echo off
-:: Get the current directory where the batch file is run
+:: Enable delayed expansion for variables inside loops
+setlocal enabledelayedexpansion
+
+:: Get the current directory
 set "source_dir=%cd%"
 
 :: Loop through each subfolder in the current directory
-for /D %%D in ("%source_dir%\*") do (
+for /D %%D in (*) do (
     :: Get the name of the subfolder
     set "folder_name=%%~nxD"
-    :: Define the output zip file name in the same directory
+    :: Define the output zip file name
     set "zip_file=%source_dir%\%%~nxD.zip"
 
     :: Check if the ZIP file already exists
