@@ -6,22 +6,22 @@ SET ORACLE_SID=ORCL
 SET DIRECTORY=DATA_PUMP_DIR
 SET SCHEMA=SCOTT
 SET TABLES=
-SET PARALLEL=4
 SET COMPRESSION=ALL
 SET FILESIZE=10G
 SET EXPORT_VERSION=LATEST
+SET PARALLEL=4
 
 :: User input
-set /p ORACLE_SID="Enter ORACLE_SID (default: %ORACLE_SID%): " 
+set /p ORACLE_SID="Enter ORACLE_SID (default: %ORACLE_SID%): "
 IF NOT DEFINED ORACLE_SID SET ORACLE_SID=ORCL
 
-set /p DIRECTORY="Enter Directory Object (default: %DIRECTORY%): " 
+set /p DIRECTORY="Enter Directory Object (default: %DIRECTORY%): "
 IF NOT DEFINED DIRECTORY SET DIRECTORY=DATA_PUMP_DIR
 
-set /p SCHEMA="Enter Schema Name (default: %SCHEMA%): " 
+set /p SCHEMA="Enter Schema Name (default: %SCHEMA%): "
 IF NOT DEFINED SCHEMA SET SCHEMA=SCOTT
 
-set /p TABLES="Enter Table(s) to Export (comma-separated or leave blank for full schema): " 
+set /p TABLES="Enter Table(s) to Export (comma-separated or leave blank for full schema): "
 IF NOT DEFINED TABLES (
     SET MODE=SCHEMA
     SET FILE_SUFFIX=ALL
@@ -34,11 +34,11 @@ IF NOT DEFINED TABLES (
 set /p FILESIZE="Enter Dump File Size Limit (e.g., 5G, 10G) (default: %FILESIZE%): "
 IF NOT DEFINED FILESIZE SET FILESIZE=10G
 
-set /p PARALLEL="Enter Parallel Workers (default: %PARALLEL%): " 
-IF NOT DEFINED PARALLEL SET PARALLEL=4
-
 set /p EXPORT_VERSION="Enter Export Version (e.g., 11.2, 12.1, 19c) (default: %EXPORT_VERSION%): "
 IF NOT DEFINED EXPORT_VERSION SET EXPORT_VERSION=LATEST
+
+set /p PARALLEL="Enter Parallel Workers (0 to disable parallelism) (default: %PARALLEL%): "
+IF NOT DEFINED PARALLEL SET PARALLEL=4
 
 :: Generate timestamp
 FOR /F "tokens=2 delims==" %%I IN ('wmic OS Get localdatetime /value') DO SET DATETIME=%%I
@@ -48,13 +48,20 @@ SET DATETIME=%DATETIME:~0,8%_%DATETIME:~8,6%
 SET DUMPFILE=EXPDP_%SCHEMA%_%FILE_SUFFIX%_%DATETIME%.dmp
 SET LOGFILE=EXPDP_%SCHEMA%_%FILE_SUFFIX%_%DATETIME%.log
 
-:: Running Data Pump Export
-echo Running Data Pump Export...
+:: Building Data Pump Command
+SET EXPORT_CMD=expdp system/password@%ORACLE_SID% DIRECTORY=%DIRECTORY% DUMPFILE=%DUMPFILE% LOGFILE=%LOGFILE% FILESIZE=%FILESIZE% COMPRESSION=%COMPRESSION% VERSION=%EXPORT_VERSION%
+
 IF "%MODE%"=="SCHEMA" (
-    expdp system/password@%ORACLE_SID% SCHEMAS=%SCHEMA% DIRECTORY=%DIRECTORY% DUMPFILE=%DUMPFILE% LOGFILE=%LOGFILE% FILESIZE=%FILESIZE% PARALLEL=%PARALLEL% COMPRESSION=%COMPRESSION% VERSION=%EXPORT_VERSION%
+    SET EXPORT_CMD=%EXPORT_CMD% SCHEMAS=%SCHEMA%
 ) ELSE (
-    expdp system/password@%ORACLE_SID% TABLES=%TABLES% DIRECTORY=%DIRECTORY% DUMPFILE=%DUMPFILE% LOGFILE=%LOGFILE% FILESIZE=%FILESIZE% PARALLEL=%PARALLEL% COMPRESSION=%COMPRESSION% VERSION=%EXPORT_VERSION%
+    SET EXPORT_CMD=%EXPORT_CMD% TABLES=%TABLES%
 )
+
+:: Add parallel only if user entered a value greater than 0
+IF NOT "%PARALLEL%"=="0" SET EXPORT_CMD=%EXPORT_CMD% PARALLEL=%PARALLEL%
+
+echo Running: %EXPORT_CMD%
+%EXPORT_CMD%
 
 echo Export Completed!
 PAUSE
