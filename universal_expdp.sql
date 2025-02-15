@@ -6,6 +6,7 @@ SET ORACLE_SID=ORCL
 SET DIRECTORY=DATA_PUMP_DIR
 SET SCHEMA=SCOTT
 SET TABLES=
+SET INCLUDE=
 SET EXCLUDE=
 SET COMPRESSION=ALL
 SET FILESIZE=10G
@@ -41,11 +42,51 @@ IF NOT DEFINED EXPORT_VERSION SET EXPORT_VERSION=LATEST
 set /p PARALLEL="Enter Parallel Workers (0 to disable parallelism) (default: %PARALLEL%): "
 IF NOT DEFINED PARALLEL SET PARALLEL=4
 
-set /p EXCLUDE="Enter Objects to Exclude (e.g., TABLE:LOGS, INDEX, CONSTRAINT) or leave blank: "
-IF NOT DEFINED EXCLUDE (
+:: Display Include/Exclude Options
+echo.
+echo Select objects to INCLUDE (leave blank to skip):
+echo 1. TABLE:EMP
+echo 2. INDEX
+echo 3. CONSTRAINT
+echo 4. TABLE:LOGS
+echo (Use comma-separated values, e.g., 1,3 for TABLE:EMP and CONSTRAINT)
+
+set /p INCLUDE_NUM="Enter numbers for INCLUDE (or leave blank): "
+IF "%INCLUDE_NUM%"=="" (
+    SET INCLUDE_PARAM=
+) ELSE (
+    SET INCLUDE=
+    FOR %%A IN (%INCLUDE_NUM%) DO (
+        IF "%%A"=="1" SET INCLUDE=!INCLUDE!,TABLE:EMP
+        IF "%%A"=="2" SET INCLUDE=!INCLUDE!,INDEX
+        IF "%%A"=="3" SET INCLUDE=!INCLUDE!,CONSTRAINT
+        IF "%%A"=="4" SET INCLUDE=!INCLUDE!,TABLE:LOGS
+    )
+    SET INCLUDE=!INCLUDE:~1!  :: Remove leading comma
+    SET INCLUDE_PARAM=INCLUDE=!INCLUDE!
+)
+
+echo.
+echo Select objects to EXCLUDE (leave blank to skip):
+echo 1. TABLE:EMP
+echo 2. INDEX
+echo 3. CONSTRAINT
+echo 4. TABLE:LOGS
+echo (Use comma-separated values, e.g., 2,4 for INDEX and TABLE:LOGS)
+
+set /p EXCLUDE_NUM="Enter numbers for EXCLUDE (or leave blank): "
+IF "%EXCLUDE_NUM%"=="" (
     SET EXCLUDE_PARAM=
 ) ELSE (
-    SET EXCLUDE_PARAM=EXCLUDE=%EXCLUDE%
+    SET EXCLUDE=
+    FOR %%B IN (%EXCLUDE_NUM%) DO (
+        IF "%%B"=="1" SET EXCLUDE=!EXCLUDE!,TABLE:EMP
+        IF "%%B"=="2" SET EXCLUDE=!EXCLUDE!,INDEX
+        IF "%%B"=="3" SET EXCLUDE=!EXCLUDE!,CONSTRAINT
+        IF "%%B"=="4" SET EXCLUDE=!EXCLUDE!,TABLE:LOGS
+    )
+    SET EXCLUDE=!EXCLUDE:~1!  :: Remove leading comma
+    SET EXCLUDE_PARAM=EXCLUDE=!EXCLUDE!
 )
 
 :: Generate timestamp
@@ -67,6 +108,7 @@ IF "%MODE%"=="SCHEMA" (
 )
 
 IF NOT "%PARALLEL%"=="0" SET EXPORT_CMD=%EXPORT_CMD% PARALLEL=%PARALLEL%
+IF NOT "%INCLUDE_PARAM%"=="" SET EXPORT_CMD=%EXPORT_CMD% %INCLUDE_PARAM%
 IF NOT "%EXCLUDE_PARAM%"=="" SET EXPORT_CMD=%EXPORT_CMD% %EXCLUDE_PARAM%
 
 echo Running: %EXPORT_CMD%
