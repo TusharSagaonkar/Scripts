@@ -6,8 +6,6 @@ SET ORACLE_SID=ORCL
 SET DIRECTORY=DATA_PUMP_DIR
 SET SCHEMA=SCOTT
 SET TABLES=
-SET INCLUDE=
-SET EXCLUDE=
 SET COMPRESSION=ALL
 SET FILESIZE=10G
 SET EXPORT_VERSION=LATEST
@@ -23,27 +21,24 @@ IF NOT DEFINED DIRECTORY SET DIRECTORY=DATA_PUMP_DIR
 set /p SCHEMA="Enter Schema Name (default: %SCHEMA%): "
 IF NOT DEFINED SCHEMA SET SCHEMA=SCOTT
 
+:: Ensure user enters a valid table list
 set /p TABLES="Enter Table(s) to Export (comma-separated or leave blank for full schema): "
-
-:: Determine filename suffix based on table count
 IF NOT DEFINED TABLES (
     SET MODE=SCHEMA
     SET FILE_SUFFIX=ALL
 ) ELSE (
     SET MODE=TABLE
-    FOR /F "tokens=1-4 delims=," %%A IN ("%TABLES%") DO (
-        IF "%%D"=="" (
-            SET FILE_SUFFIX=!TABLES!
-            SET FILE_SUFFIX=!FILE_SUFFIX:,=_!
-        ) ELSE (
-            FOR /F %%X IN ('cmd /c echo %TABLES% ^| find /c ","') DO SET /A TABLE_COUNT=%%X+1
-            IF !TABLE_COUNT! GTR 2 (
-                SET FILE_SUFFIX=TABLES(!TABLE_COUNT!)
-            ) ELSE (
-                SET FILE_SUFFIX=!TABLES!
-                SET FILE_SUFFIX=!FILE_SUFFIX:,=_!
-            )
-        )
+
+    :: Count tables to determine file name format
+    SET TABLE_COUNT=0
+    FOR %%A IN (%TABLES%) DO SET /A TABLE_COUNT+=1
+
+    :: If more than 2 tables, use TABLES(count) in file name
+    IF %TABLE_COUNT% GTR 2 (
+        SET FILE_SUFFIX=TABLES(%TABLE_COUNT%)
+    ) ELSE (
+        SET FILE_SUFFIX=!TABLES!
+        SET FILE_SUFFIX=!FILE_SUFFIX:,=_!
     )
 )
 
@@ -70,11 +65,13 @@ SET EXPORT_CMD=expdp system/password@%ORACLE_SID% DIRECTORY=%DIRECTORY% DUMPFILE
 IF "%MODE%"=="SCHEMA" (
     SET EXPORT_CMD=%EXPORT_CMD% SCHEMAS=%SCHEMA%
 ) ELSE (
-    SET EXPORT_CMD=%EXPORT_CMD% TABLES=%TABLES%
+    :: Ensure table names are enclosed in double quotes
+    SET EXPORT_CMD=%EXPORT_CMD% TABLES="%TABLES%"
 )
 
 IF NOT "%PARALLEL%"=="0" SET EXPORT_CMD=%EXPORT_CMD% PARALLEL=%PARALLEL%
 
+:: Display and run the command
 echo Running: %EXPORT_CMD%
 %EXPORT_CMD%
 
