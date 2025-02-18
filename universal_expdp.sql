@@ -6,74 +6,49 @@ SET ORACLE_SID=ORCL
 SET DIRECTORY=DATA_PUMP_DIR
 SET SCHEMA=SCOTT
 SET TABLES=
-SET COMPRESSION=ALL
 SET FILESIZE=10G
 SET EXPORT_VERSION=LATEST
 SET PARALLEL=4
+SET DATETIME=%DATE:~10,4%%DATE:~4,2%%DATE:~7,2%%TIME:~0,2%%TIME:~3,2%%TIME:~6,2%
 
-:: User input
-set /p ORACLE_SID="Enter ORACLE_SID (default: %ORACLE_SID%): "
-IF NOT DEFINED ORACLE_SID SET ORACLE_SID=ORCL
-
-set /p DIRECTORY="Enter Directory Object (default: %DIRECTORY%): "
-IF NOT DEFINED DIRECTORY SET DIRECTORY=DATA_PUMP_DIR
-
+:: User Input
 set /p SCHEMA="Enter Schema Name (default: %SCHEMA%): "
 IF NOT DEFINED SCHEMA SET SCHEMA=SCOTT
 
-:: Ensure user enters a valid table list
-set /p TABLES="Enter Table(s) to Export (comma-separated or leave blank for full schema): "
+set /p TABLES="Enter Table(s) (comma-separated or blank for full schema): "
 IF NOT DEFINED TABLES (
     SET MODE=SCHEMA
     SET FILE_SUFFIX=ALL
 ) ELSE (
     SET MODE=TABLE
-
-    :: Count tables to determine file name format
-    SET TABLE_COUNT=0
-    FOR %%A IN (%TABLES%) DO SET /A TABLE_COUNT+=1
-
-    :: If more than 2 tables, use TABLES(count) in file name
-    IF %TABLE_COUNT% GTR 2 (
-        SET FILE_SUFFIX=TABLES(%TABLE_COUNT%)
-    ) ELSE (
-        SET FILE_SUFFIX=!TABLES!
-        SET FILE_SUFFIX=!FILE_SUFFIX:,=_!
-    )
+    SET FILE_SUFFIX=!TABLES!
+    SET FILE_SUFFIX=!FILE_SUFFIX:,=_!
 )
 
-set /p FILESIZE="Enter Dump File Size Limit (e.g., 5G, 10G) (default: %FILESIZE%): "
+set /p FILESIZE="Enter Dump File Size Limit (default: %FILESIZE%): "
 IF NOT DEFINED FILESIZE SET FILESIZE=10G
 
-set /p EXPORT_VERSION="Enter Export Version (e.g., 11.2, 12.1, 19c) (default: %EXPORT_VERSION%): "
+set /p EXPORT_VERSION="Enter Export Version (default: %EXPORT_VERSION%): "
 IF NOT DEFINED EXPORT_VERSION SET EXPORT_VERSION=LATEST
 
-set /p PARALLEL="Enter Parallel Workers (0 to disable parallelism) (default: %PARALLEL%): "
+set /p PARALLEL="Enter Parallel Workers (0 to disable parallelism, default: %PARALLEL%): "
 IF NOT DEFINED PARALLEL SET PARALLEL=4
+IF "%PARALLEL%"=="0" SET PARALLEL_OPTION=
 
-:: Generate timestamp
-FOR /F "tokens=2 delims==" %%I IN ('wmic OS Get localdatetime /value') DO SET DATETIME=%%I
-SET DATETIME=%DATETIME:~0,8%_%DATETIME:~8,6%
+:: Generate Dump and Log File Names
+SET DUMPFILE=EXPDP_%SCHEMA%_%MODE%_%FILE_SUFFIX%_%DATETIME%_%U.dmp
+SET LOGFILE=EXPDP_%SCHEMA%_%MODE%_%FILE_SUFFIX%_%DATETIME%.log
 
-:: Generate dump and log file names
-SET DUMPFILE=EXPDP_%SCHEMA%_%FILE_SUFFIX%_%DATETIME%_%%U.dmp
-SET LOGFILE=EXPDP_%SCHEMA%_%FILE_SUFFIX%_%DATETIME%.log
+:: Export Command
+expdp system/password@%ORACLE_SID% DIRECTORY=%DIRECTORY% DUMPFILE=%DUMPFILE% LOGFILE=%LOGFILE% FILESIZE=%FILESIZE% COMPRESSION=ALL VERSION=%EXPORT_VERSION% %PARALLEL_OPTION%
 
-:: Running Data Pump Export
-SET EXPORT_CMD=expdp system/password@%ORACLE_SID% DIRECTORY=%DIRECTORY% DUMPFILE=%DUMPFILE% LOGFILE=%LOGFILE% FILESIZE=%FILESIZE% COMPRESSION=%COMPRESSION% VERSION=%EXPORT_VERSION%
+:: Write Metadata to Log File
+echo EXPDP Metadata >> %LOGFILE%
+echo SCHEMA=%SCHEMA% >> %LOGFILE%
+echo MODE=%MODE% >> %LOGFILE%
+echo TABLES=%TABLES% >> %LOGFILE%
+echo DUMPFILE=%DUMPFILE% >> %LOGFILE%
+echo TIMESTAMP=%DATETIME% >> %LOGFILE%
+echo PARALLEL=%PARALLEL% >> %LOGFILE%
 
-IF "%MODE%"=="SCHEMA" (
-    SET EXPORT_CMD=%EXPORT_CMD% SCHEMAS=%SCHEMA%
-) ELSE (
-    :: Ensure table names are enclosed in double quotes
-    SET EXPORT_CMD=%EXPORT_CMD% TABLES="%TABLES%"
-)
-
-IF NOT "%PARALLEL%"=="0" SET EXPORT_CMD=%EXPORT_CMD% PARALLEL=%PARALLEL%
-
-:: Display and run the command
-echo Running: %EXPORT_CMD%
-%EXPORT_CMD%
-
-echo Export Completed!
-PAUSE
+echo Export completed. Check log file: %LOGFILE%
