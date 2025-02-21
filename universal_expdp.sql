@@ -21,15 +21,22 @@ IF NOT DEFINED TABLES (
     SET FILE_SUFFIX=ALL
 ) ELSE (
     SET MODE=TABLE
-    SET FILE_SUFFIX=!TABLES!
-    SET FILE_SUFFIX=!FILE_SUFFIX:,=_!
-
-    :: Prefix each table with schema name
+    SET TABLE_COUNT=0
     SET TABLES_WITH_SCHEMA=
+    
+    :: Prefix each table with schema name & count tables
     FOR %%T IN (%TABLES%) DO (
+        SET /A TABLE_COUNT+=1
         SET TABLES_WITH_SCHEMA=!TABLES_WITH_SCHEMA!,%SCHEMA%.%%T
     )
     SET TABLES_WITH_SCHEMA=!TABLES_WITH_SCHEMA:~1!  :: Remove leading comma
+    
+    :: Adjust filename based on table count
+    IF %TABLE_COUNT% GTR 1 (
+        SET FILE_SUFFIX=%TABLE_COUNT%_TABLES
+    ) ELSE (
+        SET FILE_SUFFIX=%TABLES_WITH_SCHEMA::=_%
+    )
 )
 
 set /p FILESIZE="Enter Dump File Size Limit (default: %FILESIZE%): "
@@ -56,6 +63,7 @@ SET METADATA_FILE=EXPDP_%SCHEMA%_%MODE%_%FILE_SUFFIX%_%DATETIME%.txt
     echo SCHEMA=%SCHEMA%
     echo MODE=%MODE%
     echo TABLES=%TABLES_WITH_SCHEMA%
+    echo TABLE_COUNT=%TABLE_COUNT%
     echo DUMPFILE=%DUMPFILE%
     echo TIMESTAMP=%DATETIME%
     echo PARALLEL=%PARALLEL%
