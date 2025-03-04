@@ -1,0 +1,67 @@
+Scope of Work and responsibilities of Database Administrator
+
+1) Support for various existing Oracle and SQL Database OS platforms.
+
+2) Installing Oracle Database/Client software and creation of the database.
+
+3) Installing SQL Database software and creation of the database.
+
+4) DR Site Creation.
+
+5) Database Administration/Monitoring of existing platforms.
+
+6) Monitoring and tuning all database servers (DC,DR and Near DR).
+
+7) Creating User groups, tables and profiles.
+
+8) Performance fine-tuning and smooth functioning.
+
+9) Pro-actively monitoring the database's health and taking preventive or corrective action as required.
+
+10) Creating and maintaining all database objects, including tables, clusters, indexes, views, sequences, function, packages and procedures.
+
+11) Enforces and maintains database constraints to ensure integrity of the database.
+
+12) Implementing and maintaining regular backup (RMAN/EXPDP) procedures. Coordinating with necessary software vendors.
+
+13) Making database Backup and Restoration using RMAN and Data pump method and performing recovery when necessary.
+
+14) Refresh Database periodically for Development purpose (UAT).
+
+15) DR-Drill activity.
+
+16) Database shut-down/Start-up/Fail-over/snapshot standby steps.
+
+17) Regularly shut-down/reboot database for fine tuning as per industry standard.
+
+18) Disk and data file addition as and when required.
+
+19) Regular archive deletion.
+
+20) Storage/Disk Management(Table spaces, ASM Disk, OS mount Point)
+
+21) Manage the size and file of the database schema objects.
+
+22) Importing, Exporting and distributing Data. 23) Regular indexing and stat gather of all database.
+
+24) Log shipping (DC-DR and Near DR). Monitoring MIS activities
+
+25) Up-gradation of database (oracle latest Opatches) with help of oracle support site.
+
+26) Database security Apply Critical patches
+
+27) SR Creation and follow-up with Oracle support
+
+28) Managing Devices & Databases, User Accounts, access rights, resources.
+
+29) Scheduling tasks and alerts.
+
+30) Generation of MIS reports and evaluation sheet.
+
+31) Implementation/Support and Functionality for all the activities related with Database.
+
+32) Implementation of audit recommendations.
+
+33) Regular Data purging.
+
+34) AWR/stat pack reports
