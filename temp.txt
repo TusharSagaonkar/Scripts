@@ -65,3 +65,5 @@ Scope of Work and responsibilities of Database Administrator
 33) Regular Data purging.
 
 34) AWR/stat pack reports
+
+=TRIM(RIGHT(A1, LEN(A1) - FIND("#", SUBSTITUTE(A1, "/", "#", LEN(A1) - LEN(SUBSTITUTE(A1, "/", ""))))))
