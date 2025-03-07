@@ -7,13 +7,18 @@ IS
     -- 3. 0XXXXXXXXXX (with one or more leading zeros)
     -- 4. XXXXXXXXXX (10 digits starting with 6-9)
     v_regex_pattern CONSTANT VARCHAR2(100) := '^(0*|(\+91)?|91)?[6-9][0-9]{9}$';
+
+    -- Pattern to reject repeated digits 10 or more times
+    v_repeated_pattern CONSTANT VARCHAR2(100) := '^(0*|(\+91)?|91)?([0-9])\3{9,}$';
+
     v_trimmed_mobile VARCHAR2(50);
 BEGIN
     -- Remove leading and trailing spaces
     v_trimmed_mobile := TRIM(p_mobile);
 
-    -- Check if the trimmed input matches the pattern
-    IF REGEXP_LIKE(v_trimmed_mobile, v_regex_pattern) THEN
+    -- Check if the trimmed input matches the pattern and does not contain repeated digits
+    IF REGEXP_LIKE(v_trimmed_mobile, v_regex_pattern) 
+       AND NOT REGEXP_LIKE(v_trimmed_mobile, v_repeated_pattern) THEN
         RETURN 'Y';  -- Valid mobile number
     ELSE
         RETURN 'N';  -- Invalid mobile number
