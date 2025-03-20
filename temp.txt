@@ -159,3 +159,36 @@ WHERE user_id = (SELECT user_id FROM APPROVAL_REQUESTS WHERE request_id = :P3_RE
 
 COMMIT;
 
+
+
+CREATE OR REPLACE FUNCTION CHECK_LOGIN (
+    p_username VARCHAR2,
+    p_password VARCHAR2
+) RETURN BOOLEAN IS
+    v_stored_password VARCHAR2(200);
+    v_user_status VARCHAR2(20);
+BEGIN
+    -- Get hashed password and user status
+    SELECT password, status INTO v_stored_password, v_user_status
+    FROM USERS
+    WHERE username = p_username;
+    
+    -- Check if user is approved
+    IF v_user_status <> 'APPROVED' THEN
+        RETURN FALSE; -- User not approved, cannot log in
+    END IF;
+
+    -- Compare passwords (Assuming passwords are stored hashed)
+    IF v_stored_password = p_password THEN  -- Replace with hash comparison in production
+        RETURN TRUE; -- Login success
+    ELSE
+        RETURN FALSE; -- Incorrect password
+    END IF;
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RETURN FALSE; -- User not found
+    WHEN OTHERS THEN
+        RETURN FALSE; -- Any other error
+END CHECK_LOGIN;
+/
