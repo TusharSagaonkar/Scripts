@@ -67,3 +67,95 @@ Scope of Work and responsibilities of Database Administrator
 34) AWR/stat pack reports
 
 =TRIM(RIGHT(A1, LEN(A1) - FIND("#", SUBSTITUTE(A1, "/", "#", LEN(A1) - LEN(SUBSTITUTE(A1, "/", ""))))))
+
+20.03.2025
+
+CREATE TABLE DESIGNATIONS (
+    designation_id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    designation    VARCHAR2(50) UNIQUE NOT NULL,
+    approval_level NUMBER NOT NULL -- Determines the approval order
+);
+
+CREATE TABLE USERS (
+    user_id        NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    username       VARCHAR2(50) UNIQUE NOT NULL,
+    full_name      VARCHAR2(100) NOT NULL,
+    email          VARCHAR2(100) UNIQUE NOT NULL,
+    password       VARCHAR2(200) NOT NULL, -- Hashed
+    designation_id NUMBER, -- Foreign Key
+    created_by     NUMBER,
+    created_at     DATE DEFAULT SYSDATE,
+    status         VARCHAR2(20) CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')) DEFAULT 'PENDING',
+    FOREIGN KEY (designation_id) REFERENCES DESIGNATIONS(designation_id),
+    FOREIGN KEY (created_by) REFERENCES USERS(user_id)
+);
+
+CREATE TABLE APPROVAL_REQUESTS (
+    request_id     NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id        NUMBER, -- Affected user
+    action         VARCHAR2(20) CHECK (action IN ('CREATE', 'UPDATE', 'DELETE')),
+    requested_by   NUMBER, -- Maker
+    current_level  NUMBER, -- Current approval level
+    max_level      NUMBER, -- Final approval level
+    status         VARCHAR2(20) CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')) DEFAULT 'PENDING',
+    approved_by    NUMBER, -- Approver at current level
+    approved_at    DATE,
+    FOREIGN KEY (user_id) REFERENCES USERS(user_id),
+    FOREIGN KEY (requested_by) REFERENCES USERS(user_id),
+    FOREIGN KEY (approved_by) REFERENCES USERS(user_id)
+);
+
+
+DECLARE
+    v_max_level NUMBER;
+BEGIN
+    -- Get max approval level for the requested user's designation
+    SELECT approval_level INTO v_max_level 
+    FROM DESIGNATIONS 
+    WHERE designation_id = :P1_DESIGNATION_ID;
+
+    -- Insert new approval request
+    INSERT INTO APPROVAL_REQUESTS (user_id, action, requested_by, current_level, max_level, status)
+    VALUES (:P1_USER_ID, 'CREATE', :APP_USER, 1, v_max_level, 'PENDING');
+    
+    COMMIT;
+END;
+
+
+
+
+DECLARE
+    v_next_level NUMBER;
+BEGIN
+    -- Get the next approval level
+    SELECT current_level + 1 INTO v_next_level 
+    FROM APPROVAL_REQUESTS 
+    WHERE request_id = :P2_REQUEST_ID;
+
+    IF v_next_level <= (SELECT max_level FROM APPROVAL_REQUESTS WHERE request_id = :P2_REQUEST_ID) THEN
+        -- Move to next approval level
+        UPDATE APPROVAL_REQUESTS 
+        SET current_level = v_next_level, approved_by = :APP_USER, approved_at = SYSDATE
+        WHERE request_id = :P2_REQUEST_ID;
+    ELSE
+        -- Final approval, mark as approved
+        UPDATE APPROVAL_REQUESTS 
+        SET status = 'APPROVED', approved_by = :APP_USER, approved_at = SYSDATE
+        WHERE request_id = :P2_REQUEST_ID;
+        
+        -- Update user status
+        UPDATE USERS SET status = 'APPROVED' WHERE user_id = 
+            (SELECT user_id FROM APPROVAL_REQUESTS WHERE request_id = :P2_REQUEST_ID);
+    END IF;
+    
+    COMMIT;
+END;
+UPDATE APPROVAL_REQUESTS 
+SET status = 'APPROVED', approved_by = :APP_USER, approved_at = SYSDATE 
+WHERE request_id = :P3_REQUEST_ID;
+
+UPDATE USERS SET status = 'APPROVED' 
+WHERE user_id = (SELECT user_id FROM APPROVAL_REQUESTS WHERE request_id = :P3_REQUEST_ID);
+
+COMMIT;
+
