@@ -1,0 +1,52 @@
+<!DOCTYPE html><html>
+<head>
+    <title>Comma-Separated Input Processor</title>
+    <script>
+        function processInput() {
+            var input = document.getElementById("inputValues").value;
+            var values = input.split(",").map(val => val.trim()).filter(val => val !== "");var outputList = document.getElementById("outputList");
+        outputList.innerHTML = "";
+        values.forEach(val => {
+            var li = document.createElement("li");
+            li.textContent = val;
+            outputList.appendChild(li);
+        });
+    }
+
+    function checkRefKey() {
+        var refVal = document.getElementById("refKey").value;
+        if (refVal.length < 10) {
+            alert("Reference Key should be 10 digits");
+            document.getElementById("refKey").focus();
+            return false;
+        }
+        return true;
+    }
+
+    function doTab() {
+        var refVal = document.getElementById("refKey").value;
+        if (refVal === "") {
+            alert("Reference Key is mandatory");
+            document.getElementById("refKey").focus();
+            return false;
+        }
+        document.forms[0].action = "/omni/C010078/A009192Action.do?mode=" + document.getElementById('mode').value;
+        document.forms[0].submit();
+    }
+</script>
+
+</head>
+<body>
+    <h2>Enter Comma-Separated Values</h2>
+    <input type="text" id="inputValues" placeholder="Enter values, separated by commas">
+    <button onclick="processInput()">Process</button>
+    <ul id="outputList"></ul><form onsubmit="return doTab();">
+    <td width="35%">
+        <input type="text" name="refKey" maxlength="10" value="" onkeypress="return isNumberKey(event);" 
+            onblur="return checkRefKey();" id="refKey" placeholder="Enter 10-digit Ref Key">
+        <input type="submit" name="Verify" value="Verify" class="buttoncls" id="vu">
+    </td>
+</form>
+
+</body>
+</html>
