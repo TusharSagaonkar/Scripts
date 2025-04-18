@@ -1,194 +1,143 @@
-Scope of Work and responsibilities of Database Administrator
-
-1) Support for various existing Oracle and SQL Database OS platforms.
-
-2) Installing Oracle Database/Client software and creation of the database.
-
-3) Installing SQL Database software and creation of the database.
-
-4) DR Site Creation.
-
-5) Database Administration/Monitoring of existing platforms.
-
-6) Monitoring and tuning all database servers (DC,DR and Near DR).
-
-7) Creating User groups, tables and profiles.
-
-8) Performance fine-tuning and smooth functioning.
-
-9) Pro-actively monitoring the database's health and taking preventive or corrective action as required.
-
-10) Creating and maintaining all database objects, including tables, clusters, indexes, views, sequences, function, packages and procedures.
-
-11) Enforces and maintains database constraints to ensure integrity of the database.
-
-12) Implementing and maintaining regular backup (RMAN/EXPDP) procedures. Coordinating with necessary software vendors.
-
-13) Making database Backup and Restoration using RMAN and Data pump method and performing recovery when necessary.
-
-14) Refresh Database periodically for Development purpose (UAT).
-
-15) DR-Drill activity.
-
-16) Database shut-down/Start-up/Fail-over/snapshot standby steps.
-
-17) Regularly shut-down/reboot database for fine tuning as per industry standard.
-
-18) Disk and data file addition as and when required.
-
-19) Regular archive deletion.
-
-20) Storage/Disk Management(Table spaces, ASM Disk, OS mount Point)
-
-21) Manage the size and file of the database schema objects.
-
-22) Importing, Exporting and distributing Data. 23) Regular indexing and stat gather of all database.
-
-24) Log shipping (DC-DR and Near DR). Monitoring MIS activities
-
-25) Up-gradation of database (oracle latest Opatches) with help of oracle support site.
-
-26) Database security Apply Critical patches
-
-27) SR Creation and follow-up with Oracle support
-
-28) Managing Devices & Databases, User Accounts, access rights, resources.
-
-29) Scheduling tasks and alerts.
-
-30) Generation of MIS reports and evaluation sheet.
-
-31) Implementation/Support and Functionality for all the activities related with Database.
-
-32) Implementation of audit recommendations.
-
-33) Regular Data purging.
-
-34) AWR/stat pack reports
-
-=TRIM(RIGHT(A1, LEN(A1) - FIND("#", SUBSTITUTE(A1, "/", "#", LEN(A1) - LEN(SUBSTITUTE(A1, "/", ""))))))
-
-20.03.2025
-
-CREATE TABLE DESIGNATIONS (
-    designation_id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    designation    VARCHAR2(50) UNIQUE NOT NULL,
-    approval_level NUMBER NOT NULL -- Determines the approval order
-);
-
-CREATE TABLE USERS (
-    user_id        NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    username       VARCHAR2(50) UNIQUE NOT NULL,
-    full_name      VARCHAR2(100) NOT NULL,
-    email          VARCHAR2(100) UNIQUE NOT NULL,
-    password       VARCHAR2(200) NOT NULL, -- Hashed
-    designation_id NUMBER, -- Foreign Key
-    created_by     NUMBER,
-    created_at     DATE DEFAULT SYSDATE,
-    status         VARCHAR2(20) CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')) DEFAULT 'PENDING',
-    FOREIGN KEY (designation_id) REFERENCES DESIGNATIONS(designation_id),
-    FOREIGN KEY (created_by) REFERENCES USERS(user_id)
-);
-
-CREATE TABLE APPROVAL_REQUESTS (
-    request_id     NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id        NUMBER, -- Affected user
-    action         VARCHAR2(20) CHECK (action IN ('CREATE', 'UPDATE', 'DELETE')),
-    requested_by   NUMBER, -- Maker
-    current_level  NUMBER, -- Current approval level
-    max_level      NUMBER, -- Final approval level
-    status         VARCHAR2(20) CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')) DEFAULT 'PENDING',
-    approved_by    NUMBER, -- Approver at current level
-    approved_at    DATE,
-    FOREIGN KEY (user_id) REFERENCES USERS(user_id),
-    FOREIGN KEY (requested_by) REFERENCES USERS(user_id),
-    FOREIGN KEY (approved_by) REFERENCES USERS(user_id)
-);
-
-
-DECLARE
-    v_max_level NUMBER;
-BEGIN
-    -- Get max approval level for the requested user's designation
-    SELECT approval_level INTO v_max_level 
-    FROM DESIGNATIONS 
-    WHERE designation_id = :P1_DESIGNATION_ID;
-
-    -- Insert new approval request
-    INSERT INTO APPROVAL_REQUESTS (user_id, action, requested_by, current_level, max_level, status)
-    VALUES (:P1_USER_ID, 'CREATE', :APP_USER, 1, v_max_level, 'PENDING');
-    
-    COMMIT;
-END;
+header
+WITH STATMENT_CTE AS (
+SELECT 
+x.LBrCode,x.PrdAcctId VcrAcctId, c.Name, c.PrdCd, ss.PostDate, ss.Particulars,
+CAST(Nvl((SELECT INSTRNO FROM ACBL.D011043@MIS WHERE LBRCODE=ss.LBrCode AND ENTRYDATE=ss.POSTDATE AND BATCHCD=ss.BATCHCD AND SETNO = ss.SETNO AND CLEAREDDATE=ss.POSTDATE AND rownum=1), CASE WHEN Length(CAST(ss.InstrNo AS INT)) >9 THEN '000000000000' ELSE ss.InstrNo END)AS INT) INSTRNO,
+ss.DrCr,ss.FcyTrnAmt,x.LongName AS AcctName, 
+(Select Name From ACBL.D001003@MIS Where D001003.PBrCode = x.LBrCode) AS BranchName, y.Add1, y.Add2, y.Add3, y.CityCd, y.PinCode,y.PANNODESC,(select D500028.PlaceCdDesc from ACBL.D500028@MIS where D500028.PlaceCd= y.CityCd) as CityName,
+(SELECT D010014.Balance4 FROM ACBL.D010014@MIS WHERE D010014.LBrCode=x.LBrCode AND D010014.PrdAcctId=x.PrdAcctId  AND D010014.CblDate = (SELECT MAX(A.CblDate) FROM ACBL.D010014@MIS A WHERE A.LBrCode=D010014.LBrCode AND A.PrdAcctId=D010014.PrdAcctId AND A.CblDate < '01JAN2025' )) AS OPBAL,
+(SELECT D010014.Balance4 FROM ACBL.D010014@MIS WHERE D010014.LBrCode=x.LBrCode AND D010014.PrdAcctId=x.PrdAcctId  AND D010014.CblDate = (SELECT MAX(A.CblDate) FROM ACBL.D010014@MIS A WHERE A.LBrCode=D010014.LBrCode AND A.PrdAcctId=D010014.PrdAcctId AND A.CblDate <='18APR2025')) AS CLBAL,
+y.CustNo,y.EmailId,ss.ValueDate ,xx.MplBranch, xx.MplBrName, xx.MplBrAdd1, xx.MplBrAdd2, xx.MplBrAdd3, xx.MplBrCity, xx.MplBrPinCd, xx.MplBrTele1,xx.MplBrTele2 , xx.MplBrPlaceCd, xx.MplBrPlaceDesc, xx.MPLBrAddress,
+xx.Value,xx.MICR,xx.IFSCCODE ,
+CASE WHEN length(z.LBrCode)=2 THEN '0'||CAST(z.LBrCode AS CHAR(2))
+      WHEN length(z.LBrCode)=1 THEN '00'||CAST(z.LBrCode AS CHAR(1))  
+      ELSE CAST(z.LBrCode AS VARCHAR(3)) END
+||CASE WHEN length(z.TrnType)=2 THEN '0'||CAST(z.TrnType AS CHAR(2))
+      WHEN length(z.TrnType)=1 THEN '00'||CAST(z.TrnType AS CHAR(1))  
+      ELSE CAST(z.TrnType AS CHAR(3)) END 
+||CAST(z.PrdOffSet AS CHAR(1))||SUBSTR(x.PrdAcctId,17,8) FIFTEENDIGIT,
+TO_CHAR(yy.DOB, 'DDMMYYYY') AS DOB,
+To_Char(x.DATEOPEN,'DD-MM-YYYY')DATEOPEN,
+(x.NAMETITLE) AS NAMETITLE ,ss.CHECKERDATE,ss.CHECKERTIME
+FROM ACBL.D009022@MIS x 
+LEFT JOIN
+(
+SELECT s.LBrCode,s.VcrAcctId,s.PostDate, s.CHECKERDATE, s.CHECKERTIME,s.ValueDate, s.Particulars,s.DrCr,s.FcyTrnAmt,s.InstrNo,s.SETNO
+,s.BATCHCD FROM ACBL.D009040@MIS s 
+where  
+s.PostDate >= '01JAN2025' 
+AND s.LBrCode=19 
+AND rtrim(SUBSTR(s.VcrAcctId,1,8))='STCC' 
+AND CAST(trim(trim(SUBSTR(s.VcrAcctId ,17,8))) AS INT) >=  3935
+AND CAST(trim(trim(SUBSTR(s.VcrAcctId ,17,8))) AS INT) <=  3935
+AND s.PostDate <= '18APR2025'
+AND s.CanceledFlag  <> 'C'
+) ss 
+ON x.LBrCode = ss.LBrCode  AND x.PrdAcctId = ss.VcrAcctId
+INNER JOIN ACBL.D009021@MIS c ON x.LBrCode=c.LBrCode AND trim(SUBSTR(x.PrdAcctId,1,8))=trim(c.PrdCd) and c.ModuleType in (11,12,13,14)
+INNER JOIN ACBL.D009011@MIS y  ON x.CustNo = y.CustNo
+LEFT JOIN ACBL.D009012@MIS yy ON yy.CUSTNO=y.CustNo
+LEFT JOIN ACBL.D011011@MIS z ON c.LBrCode=z.LBrCode AND trim(z.PrdCd)=trim(c.PrdCd)
+LEFT JOIN 
+(
+SELECT x.PBrCode AS MplBranch, x.Name AS MplBrName, x.Add1 AS MplBrAdd1, x.Add2 AS MplBrAdd2, x.Add3 AS MplBrAdd3, x.CityCd AS MplBrCity, x.PinCode AS MplBrPinCd, x.Tele1 AS MplBrTele1,x.Tele2 as MplBrTele2
+, y.PlaceCd AS MplBrPlaceCd, y.PlaceCdDesc AS MplBrPlaceDesc, trim(trim(x.Add2)) || ',' || trim(x.Add3) || ',' || trim(y.PlaceCdDesc) || ',' || trim(x.PinCode) AS MPLBrAddress,  z.Value,(Select Value FROM ACBL.D001004@MIS h where trim(h.Code)='BRANCHMICRCODE' AND LBrCode=19) as MICR,
+(Select Value FROM ACBL.D001004@MIS where Code='BRANCHIFSCCODE' AND LBrCode= 19) as IFSCCODE FROM D001003 x
+LEFT JOIN ACBL.D500028@MIS y ON x.CityCd = y.PlaceCd
+LEFT JOIN ACBL.D001004@MIS z ON x.PBRCODE = z.LBRCODE AND z.CODE='BRANCHIFSCCODE' AND z.LBRCODE=19
+WHERE (x.PBrCode = 19) 
+)xx 
+ON xx.MplBranch=x.LBrCode
+WHERE x.LBrCode = 19 
+AND trim(trim(SUBSTR(x.PrdAcctId ,1,8))) = 'STCC'
+AND CAST(trim(trim(SUBSTR(x.PrdAcctId ,17,8))) AS INT) >=  3935
+AND CAST(trim(trim(SUBSTR(x.PrdAcctId ,17,8))) AS INT) <=  3935
+AND trim(trim(c.PrdCd)) = trim(trim(SUBSTR(x.PrdAcctId,1,8)))
+AND c.LBrCode = x.LBrCode
+and x.AcctStat < 3 
+ORDER BY ss.PostDate, ss.CHECKERDATE,ss.CHECKERTIME
+)
+SELECT DISTINCT
+LBRCODE, VCRACCTID, NAME, PRDCD, CUSTNO, FIFTEENDIGIT
+,NAMETITLE,ACCTNAME, BRANCHNAME, ADD1, ADD2, ADD3, CITYCD, PINCODE, CITYNAME
+,MPLBRANCH
+,MPLBRNAME,MPLBRADD1, MPLBRADD2, MPLBRADD3, MPLBRCITY, MPLBRPINCD, MPLBRTELE1, MPLBRTELE2, MPLBRPLACECD, MPLBRPLACEDESC, MPLBRADDRESS, VALUE, MICR, IFSCCODE, DOB, DATEOPEN
+,OPBAL, CLBAL, EMAILID, PANNODESC
+ FROM STATMENT_CTE;
 
 
 
-
-DECLARE
-    v_next_level NUMBER;
-BEGIN
-    -- Get the next approval level
-    SELECT current_level + 1 INTO v_next_level 
-    FROM APPROVAL_REQUESTS 
-    WHERE request_id = :P2_REQUEST_ID;
-
-    IF v_next_level <= (SELECT max_level FROM APPROVAL_REQUESTS WHERE request_id = :P2_REQUEST_ID) THEN
-        -- Move to next approval level
-        UPDATE APPROVAL_REQUESTS 
-        SET current_level = v_next_level, approved_by = :APP_USER, approved_at = SYSDATE
-        WHERE request_id = :P2_REQUEST_ID;
-    ELSE
-        -- Final approval, mark as approved
-        UPDATE APPROVAL_REQUESTS 
-        SET status = 'APPROVED', approved_by = :APP_USER, approved_at = SYSDATE
-        WHERE request_id = :P2_REQUEST_ID;
-        
-        -- Update user status
-        UPDATE USERS SET status = 'APPROVED' WHERE user_id = 
-            (SELECT user_id FROM APPROVAL_REQUESTS WHERE request_id = :P2_REQUEST_ID);
-    END IF;
-    
-    COMMIT;
-END;
-UPDATE APPROVAL_REQUESTS 
-SET status = 'APPROVED', approved_by = :APP_USER, approved_at = SYSDATE 
-WHERE request_id = :P3_REQUEST_ID;
-
-UPDATE USERS SET status = 'APPROVED' 
-WHERE user_id = (SELECT user_id FROM APPROVAL_REQUESTS WHERE request_id = :P3_REQUEST_ID);
-
-COMMIT;
+body
 
 
+WITH STATMENT_CTE AS (
+SELECT 
+x.LBrCode,x.PrdAcctId VcrAcctId, c.Name, c.PrdCd, ss.PostDate, ss.Particulars,
+CAST(Nvl((SELECT INSTRNO FROM ACBL.D011043@MIS WHERE LBRCODE=ss.LBrCode AND ENTRYDATE=ss.POSTDATE AND BATCHCD=ss.BATCHCD AND SETNO = ss.SETNO AND CLEAREDDATE=ss.POSTDATE AND rownum=1), CASE WHEN Length(CAST(ss.InstrNo AS INT)) >9 THEN '000000000000' ELSE ss.InstrNo END)AS INT) INSTRNO,
+ss.DrCr,ss.FcyTrnAmt,x.LongName AS AcctName, 
+(Select Name From ACBL.D001003@MIS Where D001003.PBrCode = x.LBrCode) AS BranchName, y.Add1, y.Add2, y.Add3, y.CityCd, y.PinCode,y.PANNODESC,(select D500028.PlaceCdDesc from ACBL.D500028@MIS where D500028.PlaceCd= y.CityCd) as CityName,
+(SELECT D010014.Balance4 FROM ACBL.D010014@MIS WHERE D010014.LBrCode=x.LBrCode AND D010014.PrdAcctId=x.PrdAcctId  AND D010014.CblDate = (SELECT MAX(A.CblDate) FROM ACBL.D010014@MIS A WHERE A.LBrCode=D010014.LBrCode AND A.PrdAcctId=D010014.PrdAcctId AND A.CblDate < '01JAN2025' )) AS OPBAL,
+(SELECT D010014.Balance4 FROM ACBL.D010014@MIS WHERE D010014.LBrCode=x.LBrCode AND D010014.PrdAcctId=x.PrdAcctId  AND D010014.CblDate = (SELECT MAX(A.CblDate) FROM ACBL.D010014@MIS A WHERE A.LBrCode=D010014.LBrCode AND A.PrdAcctId=D010014.PrdAcctId AND A.CblDate <='18APR2025')) AS CLBAL,
+y.CustNo,y.EmailId,ss.ValueDate ,xx.MplBranch, xx.MplBrName, xx.MplBrAdd1, xx.MplBrAdd2, xx.MplBrAdd3, xx.MplBrCity, xx.MplBrPinCd, xx.MplBrTele1,xx.MplBrTele2 , xx.MplBrPlaceCd, xx.MplBrPlaceDesc, xx.MPLBrAddress,
+xx.Value,xx.MICR,xx.IFSCCODE ,
+CASE WHEN length(z.LBrCode)=2 THEN '0'||CAST(z.LBrCode AS CHAR(2))
+      WHEN length(z.LBrCode)=1 THEN '00'||CAST(z.LBrCode AS CHAR(1))  
+      ELSE CAST(z.LBrCode AS VARCHAR(3)) END
+||CASE WHEN length(z.TrnType)=2 THEN '0'||CAST(z.TrnType AS CHAR(2))
+      WHEN length(z.TrnType)=1 THEN '00'||CAST(z.TrnType AS CHAR(1))  
+      ELSE CAST(z.TrnType AS CHAR(3)) END 
+||CAST(z.PrdOffSet AS CHAR(1))||SUBSTR(x.PrdAcctId,17,8) FIFTEENDIGIT,
+TO_CHAR(yy.DOB, 'DDMMYYYY') AS DOB,
+To_Char(x.DATEOPEN,'DD-MM-YYYY')DATEOPEN,
+(x.NAMETITLE) AS NAMETITLE ,ss.CHECKERDATE,ss.CHECKERTIME
+FROM ACBL.D009022@MIS x 
+LEFT JOIN
+(
+SELECT s.LBrCode,s.VcrAcctId,s.PostDate, s.CHECKERDATE, s.CHECKERTIME,s.ValueDate, s.Particulars,s.DrCr,s.FcyTrnAmt,s.InstrNo,s.SETNO
+,s.BATCHCD FROM ACBL.D009040@MIS s 
+where  
+s.PostDate >= '01JAN2025' 
+AND s.LBrCode=19 
+AND rtrim(SUBSTR(s.VcrAcctId,1,8))='STCC' 
+AND CAST(trim(trim(SUBSTR(s.VcrAcctId ,17,8))) AS INT) >=  3935
+AND CAST(trim(trim(SUBSTR(s.VcrAcctId ,17,8))) AS INT) <=  3935
+AND s.PostDate <= '18APR2025'
+AND s.CanceledFlag  <> 'C'
+) ss 
+ON x.LBrCode = ss.LBrCode  AND x.PrdAcctId = ss.VcrAcctId
+INNER JOIN ACBL.D009021@MIS c ON x.LBrCode=c.LBrCode AND trim(SUBSTR(x.PrdAcctId,1,8))=trim(c.PrdCd) and c.ModuleType in (11,12,13,14)
+INNER JOIN ACBL.D009011@MIS y  ON x.CustNo = y.CustNo
+LEFT JOIN ACBL.D009012@MIS yy ON yy.CUSTNO=y.CustNo
+LEFT JOIN ACBL.D011011@MIS z ON c.LBrCode=z.LBrCode AND trim(z.PrdCd)=trim(c.PrdCd)
+LEFT JOIN 
+(
+SELECT x.PBrCode AS MplBranch, x.Name AS MplBrName, x.Add1 AS MplBrAdd1, x.Add2 AS MplBrAdd2, x.Add3 AS MplBrAdd3, x.CityCd AS MplBrCity, x.PinCode AS MplBrPinCd, x.Tele1 AS MplBrTele1,x.Tele2 as MplBrTele2
+, y.PlaceCd AS MplBrPlaceCd, y.PlaceCdDesc AS MplBrPlaceDesc, trim(trim(x.Add2)) || ',' || trim(x.Add3) || ',' || trim(y.PlaceCdDesc) || ',' || trim(x.PinCode) AS MPLBrAddress,  z.Value,(Select Value FROM ACBL.D001004@MIS h where trim(h.Code)='BRANCHMICRCODE' AND LBrCode=19) as MICR,
+(Select Value FROM ACBL.D001004@MIS where Code='BRANCHIFSCCODE' AND LBrCode= 19) as IFSCCODE FROM D001003 x
+LEFT JOIN ACBL.D500028@MIS y ON x.CityCd = y.PlaceCd
+LEFT JOIN ACBL.D001004@MIS z ON x.PBRCODE = z.LBRCODE AND z.CODE='BRANCHIFSCCODE' AND z.LBRCODE=19
+WHERE (x.PBrCode = 19) 
+)xx 
+ON xx.MplBranch=x.LBrCode
+WHERE x.LBrCode = 19 
+AND trim(trim(SUBSTR(x.PrdAcctId ,1,8))) = 'STCC'
+AND CAST(trim(trim(SUBSTR(x.PrdAcctId ,17,8))) AS INT) >=  3935
+AND CAST(trim(trim(SUBSTR(x.PrdAcctId ,17,8))) AS INT) <=  3935
+AND trim(trim(c.PrdCd)) = trim(trim(SUBSTR(x.PrdAcctId,1,8)))
+AND c.LBrCode = x.LBrCode
+and x.AcctStat < 3 
+ORDER BY ss.PostDate, ss.CHECKERDATE,ss.CHECKERTIME
+)
 
-CREATE OR REPLACE FUNCTION CHECK_LOGIN (
-    p_username VARCHAR2,
-    p_password VARCHAR2
-) RETURN BOOLEAN IS
-    v_stored_password VARCHAR2(200);
-    v_user_status VARCHAR2(20);
-BEGIN
-    -- Get hashed password and user status
-    SELECT password, status INTO v_stored_password, v_user_status
-    FROM USERS
-    WHERE username = p_username;
-    
-    -- Check if user is approved
-    IF v_user_status <> 'APPROVED' THEN
-        RETURN FALSE; -- User not approved, cannot log in
-    END IF;
+SELECT POSTDATE, PARTICULARS, INSTRNO, WITHDRAW_AMOUNT, DEPOSITE_AMOUNT
+,OPBAL+SUM(DEPOSITE_AMOUNT-WITHDRAW_AMOUNT) 
+OVER(ORDER BY CHECKERDATE ASC, CHECKERTIME ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS Balance
+--, OPBAL, CLBAL
+FROM (
+SELECT POSTDATE, PARTICULARS, INSTRNO--, DRCR, FCYTRNAMT
+,CASE WHEN DRCR = 'D' THEN FCYTRNAMT ELSE 0 END AS WITHDRAW_AMOUNT
+,CASE WHEN DRCR = 'C' THEN FCYTRNAMT ELSE 0 END AS DEPOSITE_AMOUNT
+,OPBAL, CLBAL ,CHECKERDATE,CHECKERTIME
+FROM STATMENT_CTE
+) X;
 
-    -- Compare passwords (Assuming passwords are stored hashed)
-    IF v_stored_password = p_password THEN  -- Replace with hash comparison in production
-        RETURN TRUE; -- Login success
-    ELSE
-        RETURN FALSE; -- Incorrect password
-    END IF;
-
-EXCEPTION
-    WHEN NO_DATA_FOUND THEN
-        RETURN FALSE; -- User not found
-    WHEN OTHERS THEN
-        RETURN FALSE; -- Any other error
-END CHECK_LOGIN;
-/
