@@ -141,3 +141,86 @@ SELECT POSTDATE, PARTICULARS, INSTRNO--, DRCR, FCYTRNAMT
 FROM STATMENT_CTE
 ) X;
 
+DECLARE
+  v_header VARCHAR2(5000);
+  v_body   VARCHAR2(32767);
+  v_footer VARCHAR2(500);
+  v_amount NUMBER := 0;
+BEGIN
+  -- HTML & CSS Header
+  v_header := 
+    '<!DOCTYPE html>' ||
+    '<html><head><meta charset="UTF-8">' ||
+    '<style>' ||
+    'body { font-family: Arial, sans-serif; font-size: 14px; margin: 20px; }' ||
+    'table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }' ||
+    'th, td { border: 1px solid #999; padding: 8px; text-align: left; }' ||
+    'th { background-color: #f2f2f2; }' ||
+    'h2 { margin-top: 0; }' ||
+    '</style>' ||
+    '</head><body>';
+
+  -- Fetch and Display PO Header Details
+  FOR h IN (
+    SELECT * 
+    FROM PO_HEADERS_ALL 
+    WHERE PO_HEADER_ID = :P7_PO_HEADER_ID
+  ) LOOP
+    v_body := v_body ||
+      '<h2>Purchase Order Summary</h2>' ||
+      '<table>' ||
+      '<tr><td><strong>PO Number</strong></td><td>' || h.PO_HEADER_ID || '</td>' ||
+      '<td><strong>PO Date</strong></td><td>' || TO_CHAR(h.PO_DATE, 'DD-MON-YYYY') || '</td></tr>' ||
+      '<tr><td><strong>Vendor Name</strong></td><td>' || h.VENDOR_NAME || '</td>' ||
+      '<td><strong>Vendor Site</strong></td><td>' || h.VENDOR_SITE_NAME || '</td></tr>' ||
+      '<tr><td><strong>Vendor Contact</strong></td><td>' || h.VENDOR_CONTACT_NAME || '</td>' ||
+      '<td><strong>Terms</strong></td><td>' || h.TERMS_CODE || '</td></tr>' ||
+      '<tr><td><strong>Ship To</strong></td><td>' || h.SHIP_TO_LOCATION || '</td>' ||
+      '<td><strong>Bill To</strong></td><td>' || h.BILL_TO_LOCATION || '</td></tr>' ||
+      '</table>';
+
+    -- Line Items Table Header
+    v_body := v_body || 
+      '<h2>Line Items</h2>' ||
+      '<table>' ||
+      '<tr>' ||
+      '<th>Line #</th><th>Item Code</th><th>Description</th>' ||
+      '<th>UOM</th><th>Unit Price</th><th>Quantity</th><th>Amount</th>' ||
+      '</tr>';
+
+    -- Fetch and Display Line Items
+    FOR l IN (
+      SELECT * 
+      FROM PO_LINES_ALL 
+      WHERE PO_HEADER_ID = h.PO_HEADER_ID 
+      ORDER BY LINE_NUM
+    ) LOOP
+      v_body := v_body || 
+        '<tr>' ||
+        '<td>' || l.LINE_NUM || '</td>' ||
+        '<td>' || l.ITEM_CODE || '</td>' ||
+        '<td>' || l.ITEM_DESCRIPTION || '</td>' ||
+        '<td>' || l.UOM || '</td>' ||
+        '<td>' || TO_CHAR(l.UNIT_PRICE, '999,990.00') || '</td>' ||
+        '<td>' || l.QUANTITY || '</td>' ||
+        '<td>' || TO_CHAR(l.AMOUNT, '999,990.00') || '</td>' ||
+        '</tr>';
+
+      v_amount := v_amount + l.AMOUNT;
+    END LOOP;
+
+    -- Total Row
+    v_body := v_body || 
+      '<tr>' ||
+      '<td colspan="6" style="text-align:right;"><strong>Total Amount</strong></td>' ||
+      '<td><strong>' || TO_CHAR(v_amount, '999,990.00') || '</strong></td>' ||
+      '</tr>' ||
+      '</table>';
+  END LOOP;
+
+  -- HTML Footer
+  v_footer := '</body></html>';
+
+  -- Output the final HTML
+  HTP.P(v_header || v_body || v_footer);
+END;
