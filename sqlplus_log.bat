@@ -1,34 +1,38 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 
-REM Prompt user to enter the full path to the SQL file
+REM Prompt user for SQL file path
 set /p sqlpath=Enter full path to .sql file (e.g. D:\scripts\hello.sql): 
 
-REM Check if file exists
+REM Check if the file exists
 if not exist "%sqlpath%" (
     echo ERROR: The file "%sqlpath%" does not exist.
     exit /b 1
 )
 
-REM Extract folder, file name, and name without extension
-set "sqldir=%~dp1"
-set "sqlfile=%~nx1"
-set "sqlbase=%~n1"
-set "logfile=%sqlbase%.log"
+REM Extract folder and file parts
+for %%I in ("%sqlpath%") do (
+    set "sqldir=%%~dpI"
+    set "sqlfile=%%~nxI"
+    set "sqlbase=%%~nI"
+)
 
-REM Change directory to script folder
-pushd "%sqldir%"
+REM Move to the SQL file's directory
+pushd "!sqldir!"
 
-REM Create a temporary SQL wrapper that logs and calls the real script
+REM Set the log file name in the same location
+set "logfile=!sqlbase!.log"
+
+REM Create temporary wrapper SQL file
 (
 echo SET SERVEROUTPUT ON;
-echo SPOOL "%logfile%";
-echo @%sqlfile%
+echo SPOOL "!logfile!";
+echo @!sqlfile!
 echo SPOOL OFF;
 echo EXIT;
 ) > __temp_run.sql
 
-REM Run it with sqlplus
+REM Run using SQL*Plus
 sqlplus your_user/your_password@your_db @__temp_run.sql
 
 REM Clean up
