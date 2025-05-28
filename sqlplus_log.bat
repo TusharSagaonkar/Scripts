@@ -10,20 +10,24 @@ if not exist "%sqlpath%" (
     exit /b 1
 )
 
-REM Extract folder and file parts
+REM Extract parts from the file path
 for %%I in ("%sqlpath%") do (
     set "sqldir=%%~dpI"
     set "sqlfile=%%~nxI"
     set "sqlbase=%%~nI"
 )
 
-REM Move to the SQL file's directory
+REM Format current date and time: YYYYMMDD_HHMMSS
+for /f %%a in ('wmic os get localdatetime ^| find "."') do set dt=%%a
+set "datetime=!dt:~0,8!_!dt:~8,6!"  REM YYYYMMDD_HHMMSS
+
+REM Change to SQL file directory
 pushd "!sqldir!"
 
-REM Set the log file name in the same location
-set "logfile=!sqlbase!.log"
+REM Set log filename with datetime
+set "logfile=!sqlbase!_!datetime!.log"
 
-REM Create temporary wrapper SQL file
+REM Create temp wrapper SQL file
 (
 echo SET SERVEROUTPUT ON;
 echo SPOOL "!logfile!";
@@ -32,7 +36,7 @@ echo SPOOL OFF;
 echo EXIT;
 ) > __temp_run.sql
 
-REM Run using SQL*Plus
+REM Run it
 sqlplus your_user/your_password@your_db @__temp_run.sql
 
 REM Clean up
