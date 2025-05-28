@@ -1,33 +1,36 @@
 @echo off
 setlocal enabledelayedexpansion
 
-REM Prompt user for SQL file path
+REM Prompt for SQL file
 set /p sqlpath=Enter full path to .sql file (e.g. D:\scripts\hello.sql): 
 
-REM Check if the file exists
 if not exist "%sqlpath%" (
-    echo ERROR: The file "%sqlpath%" does not exist.
+    echo ERROR: File "%sqlpath%" does not exist.
     exit /b 1
 )
 
-REM Extract parts from the file path
+REM Prompt for DB user and DB name
+set /p dbuser=Enter Oracle username: 
+set /p dbname=Enter Oracle DB/service name: 
+
+REM Extract path components
 for %%I in ("%sqlpath%") do (
     set "sqldir=%%~dpI"
     set "sqlfile=%%~nxI"
     set "sqlbase=%%~nI"
 )
 
-REM Format current date and time: YYYYMMDD_HHMMSS
+REM Timestamp: YYYYMMDD_HHMMSS
 for /f %%a in ('wmic os get localdatetime ^| find "."') do set dt=%%a
-set "datetime=!dt:~0,8!_!dt:~8,6!"  REM YYYYMMDD_HHMMSS
+set "datetime=!dt:~0,8!_!dt:~8,6!"
 
-REM Change to SQL file directory
+REM Go to SQL file's folder
 pushd "!sqldir!"
 
-REM Set log filename with datetime
+REM Log file name
 set "logfile=!sqlbase!_!datetime!.log"
 
-REM Create temp wrapper SQL file
+REM Temp wrapper SQL
 (
 echo SET SERVEROUTPUT ON;
 echo SPOOL "!logfile!";
@@ -36,10 +39,10 @@ echo SPOOL OFF;
 echo EXIT;
 ) > __temp_run.sql
 
-REM Run it
-sqlplus your_user/your_password@your_db @__temp_run.sql
+REM Run SQL*Plus — password will be securely prompted
+sqlplus "!dbuser!@!dbname!" @__temp_run.sql
 
-REM Clean up
+REM Cleanup
 del __temp_run.sql
 
 popd
