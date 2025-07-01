@@ -1,0 +1,17 @@
+DECLARE
+    start_date   DATE := TO_DATE('01-APR-2024', 'DD-MON-YYYY');  -- Set your start date
+    end_date     DATE := TO_DATE('01-JUL-2024', 'DD-MON-YYYY');  -- Set your end date
+    current_date DATE;
+    eom          DATE;
+BEGIN
+    current_date := TRUNC(start_date, 'MM');  -- Start from 1st of the month
+
+    WHILE current_date <= end_date LOOP
+        eom := LAST_DAY(current_date);
+        DBMS_OUTPUT.PUT_LINE('Start of Month: ' || TO_CHAR(current_date, 'DD-MON-YYYY'));
+        DBMS_OUTPUT.PUT_LINE('End of Month:   ' || TO_CHAR(eom, 'DD-MON-YYYY'));
+        DBMS_OUTPUT.PUT_LINE('-----------------------------');
+        current_date := ADD_MONTHS(current_date, 1);  -- Move to next month
+    END LOOP;
+END;
+/
