@@ -37,3 +37,9 @@ BEGIN
 
     COMMIT;
 END;
+
+-- Insert cleaned mobile number
+INSERT INTO TEMP_MOBILE_UPLOAD (MOBILE_NO)
+VALUES (
+  TRIM(REPLACE(REPLACE(l_line, CHR(13), ''), CHR(10), ''))
+);
