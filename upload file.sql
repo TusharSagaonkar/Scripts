@@ -111,3 +111,16 @@ BEGIN
 
     COMMIT;
 END;
+
+
+
+
+BEGIN
+    APEX_MAIL.SEND(
+        p_to        => 'receiver@example.com',
+        p_from      => 'noreply@yourdomain.com',
+        p_subj      => 'Test Email from APEX',
+        p_body      => 'This is a test email sent from Oracle APEX.'
+    );
+    COMMIT;
+END;
