@@ -1,3 +1,8 @@
+
+
+
+
+
 DECLARE
     l_blob   BLOB;
     l_clob   CLOB;
@@ -73,3 +78,36 @@ INSERT INTO TEMP_MOBILE_UPLOAD (MOBILE_NO)
 VALUES (
   TRIM(REPLACE(REPLACE(l_line, CHR(13), ''), CHR(10), ''))
 );
+
+
+DECLARE
+    l_blob   BLOB;
+    l_clob   CLOB;
+    l_line   VARCHAR2(4000);
+    l_pos    INTEGER := 1;
+BEGIN
+    -- Truncate the temp table first
+    EXECUTE IMMEDIATE 'TRUNCATE TABLE TEMP_MOBILE_UPLOAD';
+
+    -- Load uploaded file
+    SELECT blob_content INTO l_blob
+    FROM apex_application_temp_files
+    WHERE name = :P1_FILE_UPLOAD;
+
+    l_clob := APEX_TEXT.PARSE(p_blob => l_blob, p_charset => 'UTF-8');
+
+    LOOP
+        l_line := REGEXP_SUBSTR(l_clob, '[^' || CHR(10) || ']+', 1, l_pos);
+        EXIT WHEN l_line IS NULL;
+
+        -- Clean and insert
+        INSERT INTO TEMP_MOBILE_UPLOAD (MOBILE_NO)
+        VALUES (
+            TRIM(REPLACE(REPLACE(l_line, CHR(13), ''), CHR(10), ''))
+        );
+
+        l_pos := l_pos + 1;
+    END LOOP;
+
+    COMMIT;
+END;
