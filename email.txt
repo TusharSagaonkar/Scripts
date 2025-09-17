@@ -1,0 +1,63 @@
+Subject: Request for Resources to Implement Switch File Processing System
+
+Dear [Manager’s Name],
+
+As part of the upcoming Switch File Processing system, I would like to request the following resources to ensure smooth development, testing, and deployment:
+
+1. Server Access
+
+One dedicated application server (Linux/Windows, as per infra standards) with Python 3.x installed.
+
+Access to SFTP (test and production) locations for fetching files.
+
+Scheduled job capability (cron/Task Scheduler) for automation.
+
+
+2. Database
+
+Oracle 19c schema with sufficient storage allocation for ~1M records/day (with future scalability in mind).
+
+Permission to create tables for transaction data (switch_data), audit (file_audit), and logs (file_log).
+
+Partitioning support for large tables to improve performance and reporting.
+
+
+3. File System
+
+Secure directory on the server for temporarily storing downloaded files before processing.
+
+Separate directory for logs (/var/log/switch_processing/) with sufficient retention.
+
+
+4. Connectivity & Security
+
+Whitelisted network connectivity between the application server and SFTP servers.
+
+Secure credential management (wallet or key-based authentication for DB and SFTP).
+
+
+5. Other Requirements
+
+Backup strategy for database and file system.
+
+Access to monitoring/alerting tools (optional, but useful for production stability).
+
+
+
+---
+
+These resources are necessary to:
+
+Prevent file duplication or data loss.
+
+Ensure resilience in case of downtime.
+
+Maintain compliance and auditability for transaction-level data.
+
+Support long-term scalability as file volumes grow.
+
+
+Kindly let me know the approval process and point of contact from infra/DB teams to move this forward.
+
+Thanks & Regards,
+Tushar
