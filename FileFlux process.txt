@@ -1,0 +1,178 @@
+📄 Project Approval Procedure: FileFlux
+
+1. Project Overview
+
+Name: FileFlux
+
+Purpose: Automate secure ingestion of Switch files via SFTP into Oracle Database for reconciliation and reporting.
+
+Scope: Download files from bank’s switch SFTP server, validate, store in database, and make data available for reporting.
+
+
+
+---
+
+2. Business Need
+
+Current manual/partial processes are prone to delay and duplication.
+
+Regulatory and audit teams require consistent, traceable ingestion of switch data.
+
+Growing transaction volumes (up to millions/day) require automation.
+
+
+
+---
+
+3. Proposed Solution
+
+Implement FileFlux as an automated pipeline with the following components:
+
+SFTP Automation: Secure file transfers using SSH key-based authentication.
+
+File Tracking: Maintain metadata (filename, hash, load timestamp, status) to avoid duplication.
+
+Database Storage: Insert validated data into Oracle Database with proper indexing.
+
+Recovery Mechanism: Resume from last successful file in case of downtime.
+
+Audit & Logs: Maintain process logs for compliance and troubleshooting.
+
+
+
+
+---
+
+4. Technical Design
+
+Technology Stack:
+
+Language: Python (modular scripts)
+
+Scheduler: Cron (Linux) or Task Scheduler (Windows)
+
+Database: Oracle 19c (existing infra)
+
+Libraries: paramiko (SFTP), cx_Oracle (DB connectivity), Python logging
+
+
+Architecture Flow:
+
+1. Connect to SFTP server →
+
+
+2. Identify new files (compare with DB log table) →
+
+
+3. Download file →
+
+
+4. Validate structure →
+
+
+5. Insert into Oracle table(s) →
+
+
+6. Update metadata table →
+
+
+7. Generate audit log/report.
+
+
+
+
+
+---
+
+5. Security Considerations
+
+SFTP Key-based Authentication (no password expiry issue).
+
+Dedicated Application User in Oracle DB with limited privileges.
+
+File Hashing (SHA256) for duplicate detection and integrity checks.
+
+Logging/Audit for every transfer and insert.
+
+
+
+---
+
+6. Resource Requirements
+
+Infrastructure:
+
+1 Application Server (Windows/Linux VM with Python installed).
+
+Storage: ~100 GB for file retention (adjustable).
+
+
+Access:
+
+SFTP user with SSH key authentication.
+
+Oracle app user with connect + insert/update/select privileges.
+
+
+Human Resources:
+
+1 Developer (Python/Oracle).
+
+1 DBA (table design, backup strategy).
+
+1 System Admin (SFTP + server config).
+
+
+
+
+---
+
+7. Backup & Recovery
+
+Oracle RMAN/expdp for DB backups.
+
+Daily backup of downloaded SFTP files.
+
+Resume capability: system continues from last successful file in case of outage.
+
+
+
+---
+
+8. Testing & Validation
+
+Pilot with one cycle/day for 2 weeks.
+
+Compare DB records against raw switch files.
+
+Simulate failure (server downtime) and verify auto-recovery.
+
+
+
+---
+
+9. Reporting
+
+SQL-based reports for reconciliation.
+
+Export to Excel/PDF for audit teams.
+
+Future scope: integrate into Fincron reporting layer.
+
+
+
+---
+
+10. Approval Required
+
+IT Security → for SFTP setup and key-based authentication.
+
+DBA Team → for app user creation, schema design.
+
+Operations → for process ownership.
+
+Audit/Compliance → for data handling and retention approval.
+
+
+
+---
