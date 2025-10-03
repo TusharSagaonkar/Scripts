@@ -1,0 +1,330 @@
+-- ============================================================================
+-- Project:    [Pick project name, e.g. Pravah / ChangeTrack]
+-- Purpose:    DB build script for APEX24 Change Request Management (CRM)
+-- Run as:     THE APEX APPLICATION SCHEMA (or schema used by APEX app)
+-- Notes:
+--   1) You must create an APEX Approval Task Definition in Shared Components
+--      with Static ID = 'CR_APPROVAL' (or change the constant below).
+--   2) The Approval Task's "Who can approve" should be callable via a SQL
+--      that returns list of approver_user values; sample SQL hint provided.
+-- ============================================================================
+
+-- ---------------------------
+-- 1. Clean up (optional)
+-- ---------------------------
+begin
+  for r in (
+    select table_name from user_tables
+    where table_name in (
+      'CR_REQUESTS','CR_APPROVALS','CR_APPROVAL_MATRIX','CR_ATTACHMENTS','CR_AUDIT_LOG'
+    )
+  ) loop
+    execute immediate 'drop table ' || r.table_name || ' cascade constraints';
+  end loop;
+exception when others then null;
+end;
+/
+
+-- ---------------------------
+-- 2. Create Tables
+-- ---------------------------
+
+-- Master change request table
+create table cr_requests (
+   request_id       number generated always as identity primary key,
+   title            varchar2(200) not null,
+   description      clob not null,
+   category         varchar2(50) not null,
+   priority         varchar2(20) default 'MEDIUM' not null,
+   impact           varchar2(200),
+   requester        varchar2(100) not null,
+   status           varchar2(20) default 'NEW' not null,
+   created_at       timestamp default systimestamp not null,
+   planned_date     date,
+   implemented_by   varchar2(100),
+   implemented_at   timestamp,
+   closed_at        timestamp,
+   additional_json  clob              -- flexible field if needed
+);
+
+comment on column cr_requests.additional_json is 'Optional: store structured extra data as JSON.';
+
+-- Approval trail (application-level)
+create table cr_approvals (
+   approval_id      number generated always as identity primary key,
+   request_id       number not null,
+   approver         varchar2(100) not null,
+   action           varchar2(20) check (action in ('APPROVED','REJECTED','REQUEST_INFO')) ,
+   comments         varchar2(2000),
+   action_date      timestamp default systimestamp,
+   constraint fk_cr_approvals_request foreign key (request_id) references cr_requests(request_id)
+);
+
+-- Approval matrix drives routing
+create table cr_approval_matrix (
+   matrix_id        number generated always as identity primary key,
+   category         varchar2(50),    -- NULL means apply to all categories
+   priority         varchar2(20),    -- NULL means apply to all priorities
+   seq_no           number not null, -- order (1..n)
+   approver_role    varchar2(50) not null, -- e.g. MANAGER, DBA_HEAD, CISO
+   approver_user    varchar2(100)    -- optional: fixed user; if null, resolve by role lookup
+);
+
+-- Attachments (optional)
+create table cr_attachments (
+   attachment_id    number generated always as identity primary key,
+   request_id       number not null,
+   file_name        varchar2(255),
+   mime_type        varchar2(100),
+   file_blob        blob,
+   uploaded_at      timestamp default systimestamp,
+   uploaded_by      varchar2(100),
+   constraint fk_cr_attach_request foreign key (request_id) references cr_requests(request_id)
+);
+
+-- Audit log for status transitions
+create table cr_audit_log (
+   log_id           number generated always as identity primary key,
+   request_id       number not null,
+   old_status       varchar2(20),
+   new_status       varchar2(20),
+   changed_by       varchar2(100),
+   changed_at       timestamp default systimestamp,
+   constraint fk_cr_audit_request foreign key (request_id) references cr_requests(request_id)
+);
+
+-- Optional: index for faster lookups
+create index idx_cr_requests_status on cr_requests(status);
+create index idx_cr_approvals_request on cr_approvals(request_id);
+
+-- ---------------------------
+-- 3. Triggers / Audit automation
+-- ---------------------------
+create or replace trigger trg_cr_requests_status_audit
+  before update on cr_requests
+  for each row
+begin
+  if :old.status is distinct from :new.status then
+    insert into cr_audit_log(request_id, old_status, new_status, changed_by, changed_at)
+    values (:old.request_id, :old.status, :new.status, sys_context('USERENV','SESSION_USER'), systimestamp);
+  end if;
+end;
+/
+-- create trigger for insert audit as well (initial status)
+create or replace trigger trg_cr_requests_insert_audit
+  after insert on cr_requests
+  for each row
+begin
+  insert into cr_audit_log(request_id, old_status, new_status, changed_by, changed_at)
+  values (:new.request_id, null, :new.status, sys_context('USERENV','SESSION_USER'), systimestamp);
+end;
+/
+
+-- ---------------------------
+-- 4. Sample approval matrix entries (modify as per your organisation)
+-- ---------------------------
+insert into cr_approval_matrix(category, priority, seq_no, approver_role, approver_user)
+values ('DATABASE', 'CRITICAL', 1, 'DBA_MANAGER', null);
+
+insert into cr_approval_matrix(category, priority, seq_no, approver_role, approver_user)
+values ('DATABASE', 'CRITICAL', 2, 'IT_HEAD', null);
+
+insert into cr_approval_matrix(category, priority, seq_no, approver_role, approver_user)
+values (null, 'HIGH', 1, 'REQUESTER_MANAGER', null);
+
+insert into cr_approval_matrix(category, priority, seq_no, approver_role, approver_user)
+values (null, null, 99, 'CISO', 'CISO.USER'); -- default top-level approver; example fixed user
+
+commit;
+
+-- ---------------------------
+-- 5. PL/SQL PACKAGE: CR_PKG
+--    - create_request: inserts CR and returns id
+--    - submit_for_approval: submits task to APEX Approval engine
+--    - resolve_approvers_sql: sample SQL used by approval task definition
+--    - process_task_callback: helper to update CR on approval completion
+-- ---------------------------
+create or replace package cr_pkg is
+  -- IMPORTANT: Set this to the static id you will configure in APEX Shared Components -> Approvals
+  c_approval_task_static_id constant varchar2(100) := 'CR_APPROVAL';
+
+  -- Create a CR and return request_id
+  function create_request(
+    p_title       in varchar2,
+    p_description in clob,
+    p_category    in varchar2,
+    p_priority    in varchar2,
+    p_impact      in varchar2,
+    p_requester   in varchar2,
+    p_planned_date in date
+  ) return number;
+
+  -- Submit an existing request to APEX Approvals engine
+  procedure submit_for_approval(p_request_id in number, p_initiator in varchar2, p_comment in varchar2);
+
+  -- Callback to be invoked (by APEX/Process) when approvals complete for business key
+  -- p_business_key = request id as text; p_result = 'APPROVED' or 'REJECTED'
+  procedure process_task_callback(p_business_key in varchar2, p_result in varchar2, p_comments in varchar2);
+
+end cr_pkg;
+/
+create or replace package body cr_pkg is
+
+  function create_request(
+    p_title       in varchar2,
+    p_description in clob,
+    p_category    in varchar2,
+    p_priority    in varchar2,
+    p_impact      in varchar2,
+    p_requester   in varchar2,
+    p_planned_date in date
+  ) return number is
+    l_id number;
+  begin
+    insert into cr_requests(title, description, category, priority, impact, requester, planned_date)
+    values (p_title, p_description, p_category, nvl(p_priority,'MEDIUM'), p_impact, p_requester, p_planned_date)
+    returning request_id into l_id;
+    commit;
+    return l_id;
+  end create_request;
+
+  procedure submit_for_approval(p_request_id in number, p_initiator in varchar2, p_comment in varchar2) is
+    -- We call the APEX API to create an approval task.
+    -- The APEX approval task should be configured with Static ID = c_approval_task_static_id
+    -- and the "Business Key" should accept the request ID (we pass as string).
+    l_business_key varchar2(4000) := to_char(p_request_id);
+    l_task_id      number;
+  begin
+    -- update status
+    update cr_requests set status = 'PENDING_APPROVAL' where request_id = p_request_id;
+    commit;
+
+    -- Submit to APEX Approvals
+    apex_approval.submit_task(
+       p_task_def_static_id => c_approval_task_static_id,
+       p_init_app_user      => p_initiator,
+       p_business_key       => l_business_key,
+       p_comment            => p_comment
+    );
+
+    -- Note: apex_approval.submit_task raises exceptions that you may want to handle.
+  exception
+    when others then
+      -- Log minimal info and re-raise for visibility
+      raise_application_error(-20001, 'submit_for_approval failed: ' || sqlerrm);
+  end submit_for_approval;
+
+  procedure process_task_callback(p_business_key in varchar2, p_result in varchar2, p_comments in varchar2) is
+    l_reqid number;
+  begin
+    l_reqid := to_number(p_business_key);
+
+    if p_result = 'APPROVED' then
+      update cr_requests set status = 'APPROVED' where request_id = l_reqid;
+    elsif p_result = 'REJECTED' then
+      update cr_requests set status = 'REJECTED' where request_id = l_reqid;
+    else
+      update cr_requests set status = 'IN_PROGRESS' where request_id = l_reqid;
+    end if;
+
+    -- Log a summary approval record
+    insert into cr_approvals(request_id, approver, action, comments)
+    values (l_reqid, 'APEX_APPROVAL_ENGINE', p_result, substr(nvl(p_comments,'-'),1,2000));
+
+    commit;
+  exception
+    when others then
+      -- If the callback fails, we want to know. Do not suppress completely.
+      raise_application_error(-20002, 'process_task_callback error: ' || sqlerrm);
+  end process_task_callback;
+
+end cr_pkg;
+/
+
+-- ---------------------------
+-- 6. Helper view: pending approvals for APP UI (optional)
+-- ---------------------------
+create or replace view vw_cr_pending_for_user as
+select r.request_id,
+       r.title,
+       r.requester,
+       r.priority,
+       r.category,
+       r.status,
+       r.created_at
+from cr_requests r
+where r.status = 'PENDING_APPROVAL';
+
+-- ---------------------------
+-- 7. Sample: how to use package in APEX processes (SQL examples)
+-- ---------------------------
+-- Example: create request (PL/SQL region/process)
+-- declare
+--   l_reqno number;
+-- begin
+--   l_reqno := cr_pkg.create_request(:P1_TITLE, :P1_DESCRIPTION, :P1_CATEGORY, :P1_PRIORITY, :P1_IMPACT, :APP_USER, :P1_PLANNED_DATE);
+--   -- optionally call submit
+--   cr_pkg.submit_for_approval(l_reqno, :APP_USER, 'Request raised from APEX');
+--   :P1_REQUEST_ID := l_reqno;
+-- end;
+
+-- Example: when APEX Approval Task completes, you can call the callback in a process
+-- (configure it in the Approval Task as Post-completion PL/SQL / or a REST callback)
+-- begin
+--   cr_pkg.process_task_callback(:P_BUSINESS_KEY, :P_RESULT, :P_COMMENTS);
+-- end;
+
+-- ---------------------------
+-- 8. Guidance: APEX Approval Task configuration (instructions)
+-- ---------------------------
+/*
+1) In APEX Shared Components -> Approvals -> Create Approval Task Definition:
+   - Static ID: CR_APPROVAL   (must match c_approval_task_static_id)
+   - Business Key: choose to store request_id as text
+   - Configure "Who can approve" using SQL that queries cr_approval_matrix and resolves approver_user.
+     Example SQL for "Who can approve" region (pseudocode / sample):
+
+       select approver_user
+       from (
+         select coalesce(ca.approver_user, (select username from user_role_map urm where urm.role = ca.approver_role and rownum=1)) approver_user,
+                ca.seq_no
+         from cr_approval_matrix ca
+         where (ca.category = :P1_CATEGORY or ca.category is null)
+           and (ca.priority = :P1_PRIORITY or ca.priority is null)
+         order by ca.seq_no
+       )
+       where approver_user is not null;
+
+   - If you cannot return fixed users (approver_user), return role names and use an APEX item/function to map role->users.
+   - Configure Post-completion Action to call a PL/SQL process which invokes:
+       cr_pkg.process_task_callback(:APEX$BUSINESS_KEY, :APEX$TASK_RESULT, :APEX$TASK_COMMENTS);
+     (Use APEX substitution strings available inside Approval post-processing.)
+
+2) Inbox UI: Use built-in APEX Tasks region in your app pages (APEX 24 provides Tasks region).
+3) Ensure APEX runtime has execute privilege on cr_pkg (if using separate schemas).
+*/
+
+-- ---------------------------
+-- 9. Small seed data for testing
+-- ---------------------------
+declare
+  l_id number;
+begin
+  l_id := cr_pkg.create_request('Test DB patch', 'Apply patch to DB server to fix CVE', 'DATABASE', 'CRITICAL',
+            'Possible downtime 5 mins', 'alice.user', sysdate+7);
+  -- Submit automatically for testing (comment out in production)
+  cr_pkg.submit_for_approval(l_id, 'alice.user', 'Auto-submit for test');
+end;
+/
+
+-- ---------------------------
+-- 10. Grants (adjust as needed)
+-- ---------------------------
+-- If your APEX runtime uses a different schema to call these objects, grant execute/select.
+-- Example: grant to APEX_SCHEMA (change name to actual APEX parsing schema)
+-- grant execute on cr_pkg to APEX_420200; -- example; replace with actual
+-- grant select on cr_requests to APEX_420200;
+
+-- ====================================================================
+-- End of script
+-- ====================================================================
